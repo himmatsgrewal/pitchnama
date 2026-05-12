@@ -5,17 +5,37 @@ Core analysis functions for PitchNama. Given a batter and bowler, computes
 head-to-head stats with phase-aware splits and contextualizes them against
 the batter's career baseline.
 
+This version reads from the cached Parquet DataFrame (data/ipl_deliveries.parquet)
+for near-instant lookups. Build the cache first via:
+    python scripts/build_cache.py
+
 Phase definitions (T20, 0-indexed overs):
     Powerplay: overs 0-5    (overs 1-6 in human terms)
     Middle:    overs 6-14   (overs 7-15 in human terms)
     Death:     overs 15-19  (overs 16-20 in human terms)
 """
 
+from functools import lru_cache
 from typing import Optional
-from .data_loader import iter_matches, iter_deliveries
+
+import pandas as pd
+
+from .cache import load_cache
 
 
-# ---------- Helpers ----------
+# ---------- Cache helpers ----------
+
+@lru_cache(maxsize=1)
+def _get_data() -> pd.DataFrame:
+    """
+    Load the full IPL deliveries DataFrame, cached in memory.
+
+    The @lru_cache decorator means the Parquet file is read from disk
+    exactly once per Python session. Every subsequent call returns the
+    already-loaded DataFrame instantly.
+    """
+    return load_cache()
+
 
 def get_phase(over: int) -> str:
     """Bucket a T20 over number (0-indexed) into a match phase."""
@@ -32,85 +52,22 @@ def _safe_divide(numerator: float, denominator: float) -> Optional[float]:
     return numerator / denominator if denominator > 0 else None
 
 
-# ---------- Ball collection ----------
+# ---------- Stat computation (works on any DataFrame slice) ----------
 
-def find_matchup_balls(batter_name: str, bowler_name: str) -> list[dict]:
+def _compute_stats(df: pd.DataFrame) -> dict:
     """
-    Scan every IPL match file and return every ball where the given
-    bowler delivered to the given batter.
-
-    Args:
-        batter_name: Cricket-scorecard format (e.g. 'RG Sharma').
-        bowler_name: Cricket-scorecard format (e.g. 'PJ Cummins').
-
-    Returns:
-        A list of ball dictionaries, each with match context attached.
+    Given a slice of the deliveries DataFrame, compute headline cricket stats.
+    Returns balls, runs, wickets, avg, sr, dot_pct, fours, sixes, boundary_pct.
     """
-    balls = []
-
-    for filename, match_data in iter_matches():
-        info = match_data['info']
-        match_date = info['dates'][0]
-        match_season = info['season']
-        match_venue = info['venue']
-
-        for delivery in iter_deliveries(match_data):
-            if (delivery['bowler'] == bowler_name
-                    and delivery['batter'] == batter_name):
-                balls.append({
-                    'match_id': filename.replace('.json', ''),
-                    'date': match_date,
-                    'season': match_season,
-                    'venue': match_venue,
-                    'innings': delivery['innings_index'] + 1,
-                    'over': delivery['over'],
-                    'runs_batter': delivery['runs']['batter'],
-                    'runs_extras': delivery['runs']['extras'],
-                    'runs_total': delivery['runs']['total'],
-                    'wicket': 'wickets' in delivery,
-                })
-
-    return balls
-
-
-def find_batter_balls(batter_name: str) -> list[dict]:
-    """
-    Scan every IPL match file and return every ball this batter faced
-    (regardless of bowler). Used for computing career baselines.
-    """
-    balls = []
-
-    for _, match_data in iter_matches():
-        for delivery in iter_deliveries(match_data):
-            if delivery['batter'] == batter_name:
-                balls.append({
-                    'over': delivery['over'],
-                    'runs_batter': delivery['runs']['batter'],
-                    'runs_extras': delivery['runs']['extras'],
-                    'wicket': 'wickets' in delivery,
-                })
-
-    return balls
-
-
-# ---------- Stat computation ----------
-
-def _compute_stats(balls: list[dict]) -> dict:
-    """
-    Given a list of ball dicts, compute headline cricket stats.
-
-    Returns a dictionary of: balls, runs, wickets, avg, sr, dot_pct,
-    fours, sixes, boundary_pct.
-    """
-    n = len(balls)
+    n = len(df)
     if n == 0:
         return {'balls': 0}
 
-    runs = sum(b['runs_batter'] for b in balls)
-    wickets = sum(1 for b in balls if b['wicket'])
-    dots = sum(1 for b in balls if b['runs_batter'] == 0 and b['runs_extras'] == 0)
-    fours = sum(1 for b in balls if b['runs_batter'] == 4)
-    sixes = sum(1 for b in balls if b['runs_batter'] == 6)
+    runs = int(df['runs_batter'].sum())
+    wickets = int(df['wicket'].sum())
+    dots = int(((df['runs_batter'] == 0) & (df['runs_extras'] == 0)).sum())
+    fours = int((df['runs_batter'] == 4).sum())
+    sixes = int((df['runs_batter'] == 6).sum())
 
     return {
         'balls': n,
@@ -125,13 +82,18 @@ def _compute_stats(balls: list[dict]) -> dict:
     }
 
 
-def _phase_split(balls: list[dict]) -> dict:
-    """Split a list of balls into Powerplay/Middle/Death buckets and compute stats per bucket."""
-    phases = {'Powerplay': [], 'Middle': [], 'Death': []}
-    for b in balls:
-        phases[get_phase(b['over'])].append(b)
-
-    return {phase: _compute_stats(balls) for phase, balls in phases.items()}
+def _phase_split(df: pd.DataFrame) -> dict:
+    """Split a DataFrame of balls by phase and compute stats per phase."""
+    result = {}
+    for phase_name in ['Powerplay', 'Middle', 'Death']:
+        if phase_name == 'Powerplay':
+            mask = df['over'] <= 5
+        elif phase_name == 'Middle':
+            mask = (df['over'] >= 6) & (df['over'] <= 14)
+        else:
+            mask = df['over'] >= 15
+        result[phase_name] = _compute_stats(df[mask])
+    return result
 
 
 # ---------- Public API ----------
@@ -140,18 +102,14 @@ def analyze_matchup(batter_name: str, bowler_name: str) -> dict:
     """
     Full matchup analysis between a batter and a bowler.
 
-    Returns a dictionary containing:
-      - The two player names
-      - Headline stats (balls, runs, wickets, avg, sr, etc.)
-      - Phase breakdown (powerplay/middle/death)
-      - Number of distinct matches the matchup occurred in
-
-    If no balls exist between the pair, returns a minimal dict with
-    'total_balls': 0 and an explanatory message.
+    Returns headline stats, phase breakdown, and number of distinct matches
+    the matchup occurred in. If no balls exist between the pair, returns a
+    minimal dict with total_balls=0.
     """
-    balls = find_matchup_balls(batter_name, bowler_name)
+    df = _get_data()
+    matchup_df = df[(df['batter'] == batter_name) & (df['bowler'] == bowler_name)]
 
-    if not balls:
+    if len(matchup_df) == 0:
         return {
             'batter': batter_name,
             'bowler': bowler_name,
@@ -159,9 +117,9 @@ def analyze_matchup(batter_name: str, bowler_name: str) -> dict:
             'message': 'No deliveries found between these players in our dataset.',
         }
 
-    headline = _compute_stats(balls)
-    phase_breakdown = _phase_split(balls)
-    matches_played = len({b['match_id'] for b in balls})
+    headline = _compute_stats(matchup_df)
+    phase_breakdown = _phase_split(matchup_df)
+    matches_played = matchup_df['match_id'].nunique()
 
     return {
         'batter': batter_name,
@@ -176,36 +134,33 @@ def analyze_matchup(batter_name: str, bowler_name: str) -> dict:
         'boundary_pct': headline['boundary_pct'],
         'dot_pct': headline['dot_pct'],
         'phase_breakdown': phase_breakdown,
-        'matches_played': matches_played,
+        'matches_played': int(matches_played),
     }
 
 
 def analyze_batter_overall(batter_name: str) -> Optional[dict]:
     """
-    Compute a batter's career IPL baseline across all bowlers.
-
+    Compute a batter's career IPL baseline across all bowlers. Phase-split.
     Used to contextualize matchup numbers against career norms.
-
     Returns None if the batter has no balls in our dataset.
     """
-    balls = find_batter_balls(batter_name)
+    df = _get_data()
+    batter_df = df[df['batter'] == batter_name]
 
-    if not balls:
+    if len(batter_df) == 0:
         return None
 
     return {
         'batter': batter_name,
-        'overall': _compute_stats(balls),
-        'phase_stats': _phase_split(balls),
+        'overall': _compute_stats(batter_df),
+        'phase_stats': _phase_split(batter_df),
     }
 
 
 def compare_matchup_to_baseline(batter_name: str, bowler_name: str) -> dict:
     """
     Compare a specific matchup to the batter's career baseline.
-
-    Returns a structured dictionary suitable for rendering as a side-by-side
-    comparison table or feeding into a scout report templater.
+    Returns a structured dict suitable for rendering or feeding into a templater.
     """
     matchup = analyze_matchup(batter_name, bowler_name)
     baseline = analyze_batter_overall(batter_name)
@@ -217,7 +172,6 @@ def compare_matchup_to_baseline(batter_name: str, bowler_name: str) -> dict:
             'message': 'Insufficient data for comparison.',
         }
 
-    # Phase-by-phase comparison
     phases_compared = {}
     for phase in ['Powerplay', 'Middle', 'Death']:
         m_stats = matchup['phase_breakdown'].get(phase, {'balls': 0})
