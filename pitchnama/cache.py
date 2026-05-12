@@ -1,22 +1,19 @@
 """
 cache.py — Fast ball-by-ball cache for PitchNama.
 
-The raw Cricsheet JSON files take ~30 seconds to scan in full for every
-analysis. That's fine for exploration, unbearable for a live web app.
+Builds a unified Parquet table containing every ball from every Cricsheet
+dataset PitchNama supports (IPL, T20Is, ODIs, Tests, BBL, PSL, CPL, ...).
 
-This module solves it: parse all matches once into a single Parquet table,
-then load that table instantly for every subsequent analysis. Same data,
-1000× faster lookups.
+The cache file lives at data/deliveries.parquet and is read instantly
+(~50 ms) by all analysis code. The raw JSON files are parsed exactly once
+per build.
 
 Pipeline:
-    Build (run once, or when new matches are added):
-        Raw JSON files  →  parse  →  pandas DataFrame  →  save as Parquet
+    Build (run once, or when new data is added):
+        Raw JSON files (multiple folders)  →  parse  →  unified DataFrame  →  Parquet
 
     Load (every analysis call):
         Parquet file  →  pandas DataFrame  (instant)
-
-Parquet is the industry-standard binary columnar format for analytical
-datasets. Used everywhere from CricViz to financial markets.
 """
 
 import os
@@ -24,52 +21,67 @@ from pathlib import Path
 
 import pandas as pd
 
-from .data_loader import iter_matches, iter_deliveries
+from .data_loader import (
+    CRICSHEET_DATASETS,
+    DATA_ROOT,
+    iter_matches,
+    iter_deliveries,
+)
 
 
-# Where the cache file lives. Same data/ folder as the raw JSONs.
-CACHE_PATH = "data/ipl_deliveries.parquet"
+# Where the unified cache lives.
+CACHE_PATH = "data/deliveries.parquet"
 
 
-def build_cache(output_path: str = CACHE_PATH, verbose: bool = True) -> pd.DataFrame:
-    """
-    Parse every IPL match file and save all deliveries to a single Parquet file.
+# T20 / ODI / Test classification, derived from dataset code.
+# Used downstream by analysis code so phase definitions can adapt.
+FORMAT_BY_CODE = {
+    'ipl':  'T20',
+    't20i': 'T20',
+    'bbl':  'T20',
+    'psl':  'T20',
+    'cpl':  'T20',
+    'odi':  'ODI',
+    'test': 'Test',
+}
 
-    Each row of the output table represents one ball, with all the context
-    (match, date, venue, batter, bowler, runs, wicket, phase) flattened.
 
-    Args:
-        output_path: Where to save the Parquet file.
-        verbose: If True, print progress.
+def _parse_dataset(code: str, verbose: bool = True) -> list[dict]:
+    """Parse a single Cricsheet dataset folder into a list of ball dicts."""
+    _, subfolder, label = CRICSHEET_DATASETS[code]
+    folder = os.path.join(DATA_ROOT, subfolder)
 
-    Returns:
-        The DataFrame that was saved.
-    """
+    if not os.path.exists(folder):
+        if verbose:
+            print(f"  [{label}] folder missing, skipping. "
+                  f"Run scripts/download_data.py first.")
+        return []
+
+    competition_format = FORMAT_BY_CODE[code]
     rows = []
     match_count = 0
 
-    if verbose:
-        print("Building PitchNama cache from raw JSON files...")
-
-    for filename, match_data in iter_matches():
+    for filename, match_data in iter_matches(folder):
         match_count += 1
         info = match_data['info']
         match_id = filename.replace('.json', '')
         match_date = info['dates'][0]
-        match_season = str(info['season'])
-        match_venue = info['venue']
+        match_season = str(info.get('season', ''))
+        match_venue = info.get('venue', None)
         match_city = info.get('city', None)
-        teams = info['teams']
+        teams = info.get('teams', [None, None])
 
         for delivery in iter_deliveries(match_data):
             rows.append({
+                'competition': code,
+                'format': competition_format,
                 'match_id': match_id,
                 'date': match_date,
                 'season': match_season,
                 'venue': match_venue,
                 'city': match_city,
-                'team_a': teams[0],
-                'team_b': teams[1],
+                'team_a': teams[0] if len(teams) > 0 else None,
+                'team_b': teams[1] if len(teams) > 1 else None,
                 'innings': delivery['innings_index'] + 1,
                 'over': delivery['over'],
                 'batter': delivery['batter'],
@@ -81,34 +93,57 @@ def build_cache(output_path: str = CACHE_PATH, verbose: bool = True) -> pd.DataF
                 'wicket': 'wickets' in delivery,
             })
 
-    df = pd.DataFrame(rows)
+    if verbose:
+        print(f"  [{label}] parsed {match_count} matches → {len(rows):,} deliveries")
 
-    # Ensure the data directory exists
+    return rows
+
+
+def build_cache(output_path: str = CACHE_PATH, verbose: bool = True) -> pd.DataFrame:
+    """
+    Parse every Cricsheet dataset and save all deliveries to a unified
+    Parquet file.
+
+    Args:
+        output_path: Where to save the Parquet file.
+        verbose: If True, print progress per dataset.
+
+    Returns:
+        The DataFrame that was saved.
+    """
+    if verbose:
+        print("Building unified PitchNama cache...")
+
+    all_rows = []
+    for code in CRICSHEET_DATASETS:
+        all_rows.extend(_parse_dataset(code, verbose=verbose))
+
+    df = pd.DataFrame(all_rows)
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
-
-    # Save as Parquet
     df.to_parquet(output_path, index=False, engine='pyarrow', compression='snappy')
 
     if verbose:
         size_mb = os.path.getsize(output_path) / (1024 * 1024)
-        print(f"  Parsed {match_count} matches → {len(df):,} deliveries")
-        print(f"  Saved to {output_path} ({size_mb:.1f} MB)")
+        print()
+        print(f"Total deliveries: {len(df):,}")
+        print(f"Total matches:    {df['match_id'].nunique():,}")
+        print(f"Saved to:         {output_path} ({size_mb:.2f} MB)")
+        print()
+        print("Per-competition breakdown:")
+        breakdown = df.groupby('competition').agg(
+            matches=('match_id', 'nunique'),
+            deliveries=('match_id', 'size'),
+        ).sort_values('deliveries', ascending=False)
+        print(breakdown.to_string())
 
     return df
 
 
 def load_cache(cache_path: str = CACHE_PATH) -> pd.DataFrame:
     """
-    Load the cached ball-by-ball table from disk.
+    Load the cached deliveries DataFrame from disk.
 
-    Args:
-        cache_path: Path to the Parquet cache file.
-
-    Returns:
-        A pandas DataFrame with one row per delivery.
-
-    Raises:
-        FileNotFoundError: If the cache doesn't exist. Run build_cache() first.
+    Raises FileNotFoundError if the cache doesn't exist. Run build_cache first.
     """
     if not os.path.exists(cache_path):
         raise FileNotFoundError(
