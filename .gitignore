@@ -4,7 +4,7 @@
 data/
 *.zip
 *.json
-
+!pitchnama/player_display_names.json
 # Jupyter notebook checkpoints (auto-generated backups)
 .ipynb_checkpoints/
 
