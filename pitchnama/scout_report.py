@@ -18,7 +18,7 @@ Usage:
     print(generate_report(data, language='hi'))
 """
 
-from typing import Optional
+from .players import display_name, load_display_names
 
 
 # Thresholds for sample-size honesty
@@ -148,8 +148,9 @@ def _report_en(data: dict) -> str:
     if 'message' in data:
         return data['message']
 
-    batter = data['batter']
-    bowler = data['bowler']
+    overrides = load_display_names()
+    batter = display_name(data['batter'], overrides)
+    bowler = display_name(data['bowler'], overrides)
     scope = _format_scope_en(data.get('format'), data.get('competition'))
     n_balls = data['sample_size']
     n_matches = data['matches_played']
@@ -221,8 +222,9 @@ def _report_hi(data: dict) -> str:
     if 'message' in data:
         return data['message']
 
-    batter = data['batter']
-    bowler = data['bowler']
+    overrides = load_display_names()
+    batter = display_name(data['batter'], overrides)
+    bowler = display_name(data['bowler'], overrides)
     scope = _format_scope_hi(data.get('format'), data.get('competition'))
     n_balls = data['sample_size']
     n_matches = data['matches_played']
