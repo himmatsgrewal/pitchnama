@@ -1,7 +1,15 @@
 # === PitchNama .gitignore ===
 
 # Data files (Cricsheet downloads — these are huge and downloadable from source)
-data/
+# Raw Cricsheet downloads — too large for Git
+data/*.zip
+data/ipl_json/
+data/t20i_json/
+data/odi_json/
+data/test_json/
+data/bbl_json/
+data/psl_json/
+data/cpl_json/
 *.zip
 *.json
 !pitchnama/player_display_names.json
