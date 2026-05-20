@@ -59,26 +59,40 @@ st.divider()
 # ---------- Load player list (cached so it's instant after first load) ----------
 
 @st.cache_data
-def get_player_options() -> list[tuple[str, str]]:
+def get_player_options() -> list[dict]:
     """
-    Return a sorted list of (display_name, scorecard_name) tuples for the
-    full player registry. Display names are used for the dropdown labels;
-    scorecard names are passed to the analysis layer.
+    Return player option dicts for the dropdowns, using the enriched registry.
+    Each option: label (display name), scorecard, full, country, and a combined
+    'search' string so a player is findable by short name, full name, or scorecard.
     """
     registry = load_registry()
-    overrides = load_display_names()
 
-    # Aggregate by scorecard name, sum appearances (in case of duplicates)
-    grouped = registry.groupby('scorecard_name', as_index=False)['appearances'].sum()
+    grouped = (registry
+               .sort_values('appearances', ascending=False)
+               .groupby('scorecard_name', as_index=False)
+               .agg({
+                   'appearances': 'sum',
+                   'display_name': 'first',
+                   'full_name': 'first',
+                   'country': 'first',
+               }))
 
     options = []
     for _, row in grouped.iterrows():
         scorecard = row['scorecard_name']
-        display = display_name(scorecard, overrides)
-        options.append((display, scorecard))
+        display = row['display_name'] if pd.notna(row['display_name']) else scorecard
+        full = row['full_name'] if pd.notna(row['full_name']) else ''
+        country = row['country'] if pd.notna(row['country']) else ''
+        search_blob = f"{display} {full} {scorecard} {country}".lower()
+        options.append({
+            'label': display,
+            'scorecard': scorecard,
+            'full': full,
+            'country': country,
+            'search': search_blob,
+        })
 
-    # Sort by display name, alphabetically
-    options.sort(key=lambda x: x[0].lower())
+    options.sort(key=lambda x: x['label'].lower())
     return options
 
 
@@ -105,18 +119,20 @@ with col1:
     batter_choice = st.selectbox(
         "Batter",
         options=player_options,
-        format_func=lambda x: x[0],
+        format_func=lambda x: x['label'] + (f"  ·  {x['country']}" if x['country'] else ""),
         index=None,
-        placeholder="Type to search batter…",
+        placeholder="Type a name — full or short…",
+        key="batter_select",
     )
 
 with col2:
     bowler_choice = st.selectbox(
         "Bowler",
         options=player_options,
-        format_func=lambda x: x[0],
+        format_func=lambda x: x['label'] + (f"  ·  {x['country']}" if x['country'] else ""),
         index=None,
-        placeholder="Type to search bowler…",
+        placeholder="Type a name — full or short…",
+        key="bowler_select",
     )
 
 # Scope filters
@@ -146,12 +162,12 @@ if analyze:
         st.warning("Please pick both a batter and a bowler.")
         st.stop()
 
-    if batter_choice[1] == bowler_choice[1]:
+    if batter_choice['scorecard'] == bowler_choice['scorecard']:
         st.warning("Batter and bowler must be different players.")
         st.stop()
 
-    batter_scorecard = batter_choice[1]
-    bowler_scorecard = bowler_choice[1]
+    batter_scorecard = batter_choice['scorecard']
+    bowler_scorecard = bowler_choice['scorecard']
 
     # Normalise scope arguments
     fmt = None if format_choice == 'All formats' else format_choice
@@ -170,7 +186,7 @@ if analyze:
     # ---------- Headline stats ----------
 
     st.divider()
-    st.subheader(f"{batter_choice[0]} vs {bowler_choice[0]}")
+    st.subheader(f"{batter_choice['label']} vs {bowler_choice['label']}")
 
     matchup = data['overall_matchup']
     baseline = data['overall_baseline']

@@ -1,20 +1,20 @@
 """
 players.py — Player name registry for PitchNama.
 
-Builds and loads a registry of every player who appears in the dataset,
-mapping their Cricsheet scorecard names (e.g. 'RG Sharma') to unique
-person IDs (Cricsheet's registry).
+Builds and loads a registry of every player in the dataset, enriched with
+full names and countries from Cricsheet/Cricinfo metadata (player_meta.csv,
+exported once from the cricketdata R package).
 
-Display names come from a curated JSON file (data/player_display_names.json)
-that we maintain manually for the most prominent players. Anyone not in the
-curated list gets a politely-formatted fallback (e.g. 'RG Sharma' → 'R. G. Sharma').
+Display name priority:
+    1. Curated override (pitchnama/player_display_names.json) — always wins
+    2. Derived clean name from full_name ("Rohit Gurunath Sharma" -> "Rohit Sharma")
+    3. Polished scorecard fallback ("RG Sharma" -> "R. G. Sharma")
 
-Pipeline:
-    Build (run once after dataset changes):
-        Match JSONs  →  extract (name, person_id) pairs  →  Parquet
+The registry stores, per player:
+    scorecard_name, person_id, appearances, full_name, display_name, country
 
-    Load:
-        Parquet  →  pandas DataFrame  →  used for display name lookups
+NOTE: This module only builds the *registry* (players.parquet). It never
+touches deliveries.parquet — match data and stats are unaffected.
 """
 
 import json
@@ -29,18 +29,66 @@ from .data_loader import CRICSHEET_DATASETS, DATA_ROOT, iter_matches
 
 REGISTRY_PATH = "data/players.parquet"
 DISPLAY_NAMES_PATH = "pitchnama/player_display_names.json"
+PLAYER_META_PATH = "data/player_meta.csv"
 
+
+# ---------- Display-name helpers ----------
+
+def load_display_names(path: str = DISPLAY_NAMES_PATH) -> dict:
+    """Load curated display-name overrides. Skips the _comment key. Empty dict if missing."""
+    if not os.path.exists(path):
+        return {}
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    return {k: v for k, v in data.items() if not k.startswith("_")}
+
+
+def _polish_scorecard_name(name: str) -> str:
+    """Fallback: 'RG Sharma' -> 'R. G. Sharma'. Leaves single-token names alone."""
+    parts = name.split(' ', 1)
+    if len(parts) == 1:
+        return name
+    initials, rest = parts
+    if initials.isupper() and len(initials) >= 2 and initials.isalpha():
+        spaced = '. '.join(initials) + '.'
+        return f"{spaced} {rest}"
+    return name
+
+
+def derive_display_name(full_name: str) -> str:
+    """
+    Turn a full legal name into a common 'First Last' display name.
+      - 1-2 words: return as-is
+      - 3+ words: first word + last word
+    """
+    if not isinstance(full_name, str):
+        return ""
+    cleaned = full_name.strip().lstrip("-").strip()
+    parts = cleaned.split()
+    if len(parts) <= 2:
+        return cleaned
+    return f"{parts[0]} {parts[-1]}"
+
+
+def resolve_display_name(scorecard_name: str,
+                         full_name: Optional[str],
+                         overrides: dict) -> str:
+    """Apply the display-name priority: curated -> derived -> polished fallback."""
+    if scorecard_name in overrides:
+        return overrides[scorecard_name]
+    if isinstance(full_name, str) and full_name.strip() and full_name.strip().lower() != "nan":
+        return derive_display_name(full_name)
+    return _polish_scorecard_name(scorecard_name)
+
+
+# ---------- Registry build ----------
 
 def build_registry(output_path: str = REGISTRY_PATH, verbose: bool = True) -> pd.DataFrame:
     """
-    Scan every dataset and build a unified player registry.
-
-    For every match, Cricsheet's info section includes a 'registry.people'
-    dict mapping scorecard names to unique person IDs. We aggregate this
-    across all matches to produce one row per (name, person_id) pair, with
-    counts of appearances.
+    Scan every dataset, build the player registry, and enrich with full names
+    and countries from player_meta.csv. Writes players.parquet.
     """
-    seen = {}  # (scorecard_name, person_id) → match count
+    seen = {}  # (scorecard_name, person_id) -> appearance count
 
     if verbose:
         print("Building player registry...")
@@ -52,14 +100,11 @@ def build_registry(output_path: str = REGISTRY_PATH, verbose: bool = True) -> pd
             if verbose:
                 print(f"  [{label}] folder missing, skipping")
             continue
-
-        count_in_dataset = 0
         for _, match_data in iter_matches(folder):
             registry = match_data.get('info', {}).get('registry', {}).get('people', {})
             for name, person_id in registry.items():
                 key = (name, person_id)
                 seen[key] = seen.get(key, 0) + 1
-                count_in_dataset += 1
         if verbose:
             print(f"  [{label}] processed")
 
@@ -69,16 +114,40 @@ def build_registry(output_path: str = REGISTRY_PATH, verbose: bool = True) -> pd
     ]
     df = pd.DataFrame(rows)
 
-    # Aggregate by person_id to get total appearances per person
-    # (a person can have multiple scorecard name spellings across matches)
+    # --- Enrich with full_name + country from player_meta.csv ---
+    full_name_map = {}
+    country_map = {}
+    if os.path.exists(PLAYER_META_PATH):
+        meta = pd.read_csv(PLAYER_META_PATH)
+        meta['full_name'] = meta['full_name'].astype(str).str.strip()
+        full_name_map = dict(zip(meta['cricsheet_id'], meta['full_name']))
+        country_map = dict(zip(meta['cricsheet_id'], meta['country']))
+        if verbose:
+            print(f"  Loaded metadata for {len(meta):,} players from {PLAYER_META_PATH}")
+    else:
+        if verbose:
+            print(f"  WARNING: {PLAYER_META_PATH} not found — names will use fallback only.")
+
+    overrides = load_display_names()
+
+    df['full_name'] = df['person_id'].map(full_name_map)
+    df['country'] = df['person_id'].map(country_map)
+    df['display_name'] = df.apply(
+        lambda r: resolve_display_name(r['scorecard_name'], r['full_name'], overrides),
+        axis=1,
+    )
+
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(output_path, index=False, engine='pyarrow', compression='snappy')
 
     if verbose:
-        size_kb = os.path.getsize(output_path) / 1024
-        print(f"\nTotal unique (name, person_id) pairs: {len(df):,}")
-        print(f"Unique players:                       {df['person_id'].nunique():,}")
-        print(f"Saved to:                             {output_path} ({size_kb:.1f} KB)")
+        n_full = df['full_name'].notna().sum()
+        n_curated = df['scorecard_name'].isin(overrides).sum()
+        print(f"\nTotal (name, id) pairs: {len(df):,}")
+        print(f"Unique players:         {df['person_id'].nunique():,}")
+        print(f"  With full name:       {n_full:,}")
+        print(f"  Curated overrides:    {n_curated:,}")
+        print(f"Saved to: {output_path}")
 
     return df
 
@@ -93,47 +162,22 @@ def load_registry(registry_path: str = REGISTRY_PATH) -> pd.DataFrame:
     return pd.read_parquet(registry_path, engine='pyarrow')
 
 
-def load_display_names(path: str = DISPLAY_NAMES_PATH) -> dict:
-    """Load the curated display-name overrides. Returns empty dict if file missing."""
-    if not os.path.exists(path):
-        return {}
-    with open(path, 'r', encoding='utf-8') as f:
-        return json.load(f)
-
-
-def _polish_scorecard_name(name: str) -> str:
-    """
-    Fallback formatter: turn 'RG Sharma' into 'R. G. Sharma'.
-    Adds dots and spaces to initials, leaves surnames alone.
-    """
-    parts = name.split(' ', 1)
-    if len(parts) == 1:
-        return name
-    initials, rest = parts
-    # If first chunk is all uppercase letters (typical initials block), expand it
-    if initials.isupper() and len(initials) >= 2 and initials.isalpha():
-        spaced = '. '.join(initials) + '.'
-        return f"{spaced} {rest}"
-    return name
-
-
 def display_name(scorecard_name: str, overrides: Optional[dict] = None) -> str:
     """
-    Convert a scorecard name to a display name.
-
-    Lookup order:
-      1. If curated overrides include this scorecard_name → use it
-      2. Otherwise fall back to polished initials format
-
-    Args:
-        scorecard_name: e.g. 'RG Sharma'
-        overrides: optional preloaded display-names dict (for performance)
-
-    Returns:
-        e.g. 'Rohit Sharma' if curated, 'R. G. Sharma' if fallback.
+    Resolve a display name for a scorecard name (used by older callers like
+    scout_report). Looks up the prebuilt registry's display_name if available,
+    else falls back to override-or-polish.
     """
     if overrides is None:
         overrides = load_display_names()
     if scorecard_name in overrides:
         return overrides[scorecard_name]
+    # Try the registry's prebuilt display name
+    try:
+        reg = load_registry()
+        match = reg[reg['scorecard_name'] == scorecard_name]
+        if len(match) > 0 and 'display_name' in reg.columns:
+            return match.iloc[0]['display_name']
+    except Exception:
+        pass
     return _polish_scorecard_name(scorecard_name)
