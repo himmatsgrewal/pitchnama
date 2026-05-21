@@ -1,316 +1,220 @@
 """
 scout_report.py — Bilingual scout report generation for PitchNama.
 
-Takes the structured output of compare_matchup_to_baseline() and produces
-a clean, coach-readable narrative paragraph in either English or Hindi.
-
-Sample-size honesty is built in: anywhere the data is thin, the report
-says so explicitly. Phase narrative is included only when the scope is
-T20 (where our phase definitions apply); for ODIs, Tests, and all-formats
-scopes, the phase sentence is omitted rather than shown with wrong numbers.
-
-Usage:
-    from pitchnama.matchup import compare_matchup_to_baseline
-    from pitchnama.scout_report import generate_report
-
-    data = compare_matchup_to_baseline('RG Sharma', 'PJ Cummins', format='T20')
-    print(generate_report(data, language='en'))
-    print(generate_report(data, language='hi'))
+Takes compare_matchup_to_baseline() output and produces a coach-readable
+narrative in English or Hindi. Format-aware: phase narrative uses the
+correct phases for the format, and for 'all formats' scope it highlights
+the single most striking phase finding across all formats.
 """
 
-from .players import display_name, load_display_names
+from typing import Optional
 
 
-# Thresholds for sample-size honesty
-SMALL_SAMPLE_THRESHOLD = 30          # below this, flag the overall sample as modest
+SMALL_SAMPLE_THRESHOLD = 30
 PHASE_MIN_BALLS = 3
-PHASE_DIVERGENCE_THRESHOLD = 0.2     # SR or avg must diverge from baseline by ≥30% to be worth mentioning
-
-# T20 competitions where our phase definitions apply
-T20_COMPETITIONS = {'ipl', 't20i', 'bbl', 'psl', 'cpl'}
+PHASE_DIVERGENCE_THRESHOLD = 0.2
 
 
 # ---------- Helpers ----------
 
 def _fmt(value: Optional[float], spec: str = '.1f', dash: str = '—') -> str:
-    """Format a number, returning a dash if value is None."""
     if value is None:
         return dash
     return format(value, spec)
 
 
-def _format_scope_en(format: Optional[str], competition: Optional[str]) -> str:
-    """Render the analysis scope in English."""
+def _scope_en(format: Optional[str], competition: Optional[str]) -> str:
     if competition:
-        labels = {
-            'ipl': 'the IPL', 't20i': "men's T20Is", 'odi': "men's ODIs",
-            'test': "men's Tests", 'bbl': 'the BBL', 'psl': 'the PSL',
-            'cpl': 'the CPL',
-        }
+        labels = {'ipl': 'the IPL', 't20i': "men's T20Is", 'odi': "men's ODIs",
+                  'test': "men's Tests", 'bbl': 'the BBL', 'psl': 'the PSL', 'cpl': 'the CPL'}
         return labels.get(competition, competition)
     if format:
-        return {'T20': 'T20 cricket', 'ODI': 'ODI cricket',
-                'Test': 'Test cricket'}.get(format, format)
+        return {'T20': 'T20 cricket', 'ODI': 'ODI cricket', 'Test': 'Test cricket'}.get(format, format)
     return 'all formats'
 
 
-def _format_scope_hi(format: Optional[str], competition: Optional[str]) -> str:
-    """Render the analysis scope in Hindi."""
+def _scope_hi(format: Optional[str], competition: Optional[str]) -> str:
     if competition:
-        labels = {
-            'ipl': 'आईपीएल', 't20i': 'पुरुष T20I', 'odi': 'पुरुष वनडे',
-            'test': 'पुरुष टेस्ट', 'bbl': 'बिग बैश लीग', 'psl': 'पीएसएल',
-            'cpl': 'सीपीएल',
-        }
+        labels = {'ipl': 'आईपीएल', 't20i': 'पुरुष T20I', 'odi': 'पुरुष वनडे',
+                  'test': 'पुरुष टेस्ट', 'bbl': 'बिग बैश लीग', 'psl': 'पीएसएल', 'cpl': 'सीपीएल'}
         return labels.get(competition, competition)
     if format:
-        return {'T20': 'T20 क्रिकेट', 'ODI': 'वनडे क्रिकेट',
-                'Test': 'टेस्ट क्रिकेट'}.get(format, format)
+        return {'T20': 'T20 क्रिकेट', 'ODI': 'वनडे क्रिकेट', 'Test': 'टेस्ट क्रिकेट'}.get(format, format)
     return 'सभी फॉर्मैट'
 
 
-def _is_t20_scope(format: Optional[str], competition: Optional[str]) -> bool:
+# Phase label translations for Hindi
+PHASE_HI = {
+    'Powerplay': 'पावरप्ले',
+    'Middle': 'मिडल ओवर्स',
+    'Death': 'डेथ ओवर्स',
+    'First 30 overs': 'पहले 30 ओवर',
+    'Overs 30-80': '30 से 80 ओवर',
+    'Overs 80+': '80+ ओवर',
+}
+
+PHASE_EN = {
+    'Powerplay': 'the powerplay',
+    'Middle': 'the middle overs',
+    'Death': 'the death overs',
+    'First 30 overs': 'the first 30 overs',
+    'Overs 30-80': 'overs 30 to 80',
+    'Overs 80+': 'overs 80 and beyond',
+}
+
+FORMAT_HI = {'T20': 'T20', 'ODI': 'वनडे', 'Test': 'टेस्ट'}
+
+
+def _find_sharpest_phase(phases_by_format: dict):
     """
-    Decide whether T20-style phase narrative is appropriate.
-    True only when scope is unambiguously T20 (a single T20 competition,
-    or format='T20' explicitly).
+    Across all formats, find the single phase with the largest meaningful
+    divergence from baseline SR. Returns (format, phase, phase_stats) or None.
     """
-    if competition is not None:
-        return competition in T20_COMPETITIONS
-    if format == 'T20':
-        return True
-    return False  # ODI, Test, all-formats — skip phase narrative
+    best = None
+    best_div = PHASE_DIVERGENCE_THRESHOLD
+    for fmt, phases in phases_by_format.items():
+        for phase, p in phases.items():
+            n = p.get('matchup_balls', 0)
+            if n < PHASE_MIN_BALLS:
+                continue
+            m_sr, b_sr = p.get('matchup_sr'), p.get('baseline_sr')
+            if m_sr is None or b_sr is None or b_sr == 0:
+                continue
+            div = abs(m_sr - b_sr) / b_sr
+            if div >= best_div:
+                best_div = div
+                best = (fmt, phase, p)
+    return best
 
 
-def _find_notable_phase(phases: dict, language: str) -> Optional[str]:
-    """
-    Look through phase data and return a narrative sentence describing
-    the most divergent phase, if any. Returns None if nothing worth saying.
-
-    Rules:
-      - Only phases with >= PHASE_MIN_BALLS deliveries are eligible
-      - Phase must show meaningful divergence from baseline SR
-      - Pick the phase with the largest divergence
-    """
-    candidates = []
-    for phase_name, p in phases.items():
-        n = p.get('matchup_balls', 0)
-        if n < PHASE_MIN_BALLS:
-            continue
-        m_sr = p.get('matchup_sr')
-        b_sr = p.get('baseline_sr')
-        if m_sr is None or b_sr is None or b_sr == 0:
-            continue
-        divergence = abs(m_sr - b_sr) / b_sr
-        if divergence < PHASE_DIVERGENCE_THRESHOLD:
-            continue
-        candidates.append((phase_name, p, divergence))
-
-    if not candidates:
-        return None
-
-    # Pick the phase with the largest divergence
-    candidates.sort(key=lambda x: x[2], reverse=True)
-    phase_name, p, _ = candidates[0]
-
-    m_sr = p['matchup_sr']
-    b_sr = p['baseline_sr']
-    n = p['matchup_balls']
-    direction_en = "drops to" if m_sr < b_sr else "rises to"
-    direction_hi = "गिरकर" if m_sr < b_sr else "बढ़कर"
-
-    phase_label_en = {'Powerplay': 'the powerplay',
-                      'Middle': 'the middle overs',
-                      'Death': 'the death overs'}.get(phase_name, phase_name)
-
-    phase_label_hi = {'Powerplay': 'पावरप्ले',
-                      'Middle': 'मिडल ओवर्स',
-                      'Death': 'डेथ ओवर्स'}.get(phase_name, phase_name)
-
-    if language == 'en':
-        caveat = ""
-        if n < PHASE_MIN_BALLS * 2:
-            caveat = f" — though the sample is small ({n} balls)"
-        return (f"In {phase_label_en}, the batter's career strike rate "
-                f"of {b_sr:.1f} {direction_en} {m_sr:.1f} against this bowler{caveat}.")
-    else:  # hi
-        caveat = ""
-        if n < PHASE_MIN_BALLS * 2:
-            caveat = f" — हालाँकि नमूना सीमित है ({n} गेंदें)"
-        return (f"{phase_label_hi} में, बल्लेबाज़ का करियर स्ट्राइक रेट "
-                f"{b_sr:.1f} इस गेंदबाज़ के सामने {direction_hi} {m_sr:.1f} हो जाता है{caveat}।")
+def _phase_sentence_en(fmt: str, phase: str, p: dict, multi_format: bool) -> str:
+    m_sr, b_sr, n = p['matchup_sr'], p['baseline_sr'], p['matchup_balls']
+    direction = "drops to" if m_sr < b_sr else "rises to"
+    phase_label = PHASE_EN.get(phase, phase)
+    fmt_prefix = f"In {fmt} cricket, in {phase_label}" if multi_format else f"In {phase_label}"
+    caveat = f" — though the sample is small ({n} balls)" if n < PHASE_MIN_BALLS * 2 else ""
+    return (f"{fmt_prefix}, the batter's career strike rate of {b_sr:.1f} "
+            f"{direction} {m_sr:.1f} against this bowler{caveat}.")
 
 
-# ---------- English report ----------
+def _phase_sentence_hi(fmt: str, phase: str, p: dict, multi_format: bool) -> str:
+    m_sr, b_sr, n = p['matchup_sr'], p['baseline_sr'], p['matchup_balls']
+    direction = "गिरकर" if m_sr < b_sr else "बढ़कर"
+    phase_label = PHASE_HI.get(phase, phase)
+    fmt_prefix = f"{FORMAT_HI.get(fmt, fmt)} में {phase_label} में" if multi_format else f"{phase_label} में"
+    caveat = f" — हालाँकि नमूना सीमित है ({n} गेंदें)" if n < PHASE_MIN_BALLS * 2 else ""
+    return (f"{fmt_prefix}, बल्लेबाज़ का करियर स्ट्राइक रेट {b_sr:.1f} "
+            f"इस गेंदबाज़ के सामने {direction} {m_sr:.1f} हो जाता है{caveat}।")
+
+
+# ---------- Reports ----------
 
 def _report_en(data: dict) -> str:
-    """Generate the English scout report from compare_matchup_to_baseline output."""
     if 'message' in data:
         return data['message']
 
+    from .players import display_name, load_display_names
     overrides = load_display_names()
     batter = display_name(data['batter'], overrides)
     bowler = display_name(data['bowler'], overrides)
-    scope = _format_scope_en(data.get('format'), data.get('competition'))
+    scope = _scope_en(data.get('format'), data.get('competition'))
     n_balls = data['sample_size']
     n_matches = data['matches_played']
 
-    matchup = data['overall_matchup']
-    baseline = data['overall_baseline']
+    m, b = data['overall_matchup'], data['overall_baseline']
+    m_avg, m_sr, b_avg, b_sr = m['avg'], m['sr'], b['avg'], b['sr']
 
-    m_avg = matchup['avg']
-    m_sr = matchup['sr']
-    b_avg = baseline['avg']
-    b_sr = baseline['sr']
-
-    # Sentence 1: headline finding
     if m_avg is not None and b_avg is not None:
         if m_avg < b_avg * 0.8:
             edge = f"{bowler} has a clear edge in this matchup"
         elif m_avg > b_avg * 1.2:
             edge = f"{batter} has handled {bowler} better than most"
         else:
-            edge = f"this matchup has been broadly even"
+            edge = "this matchup has been broadly even"
     else:
         edge = f"the matchup between {batter} and {bowler} is finely poised"
 
-    headline = (
-        f"Across {n_balls} deliveries in {n_matches} matches in {scope}, "
-        f"{edge}."
-    )
+    out = f"Across {n_balls} deliveries in {n_matches} matches in {scope}, {edge}."
+    out += (f" {batter} averages {_fmt(m_avg)} against {bowler} "
+            f"(career baseline: {_fmt(b_avg)}), scoring at a strike rate of "
+            f"{_fmt(m_sr)} (career: {_fmt(b_sr)}).")
 
-    # Sentence 2: matchup vs baseline
-    matchup_line = (
-        f" {batter} averages {_fmt(m_avg, '.1f')} against {bowler} "
-        f"(career baseline: {_fmt(b_avg, '.1f')}), "
-        f"scoring at a strike rate of {_fmt(m_sr, '.1f')} "
-        f"(career: {_fmt(b_sr, '.1f')})."
-    )
+    # Phase sentence — sharpest finding across whatever formats are present
+    phases_by_format = data.get('phases_by_format', {})
+    multi = data.get('format') is None and data.get('competition') is None
+    sharp = _find_sharpest_phase(phases_by_format)
+    if sharp:
+        fmt, phase, p = sharp
+        out += " " + _phase_sentence_en(fmt, phase, p, multi)
 
-    # Sentence 3: phase narrative — only for T20 scopes
-    phase_line = ""
-    if _is_t20_scope(data.get('format'), data.get('competition')):
-        notable = _find_notable_phase(data.get('phases', {}), language='en')
-        if notable:
-            phase_line = " " + notable
-
-    # Sentence 4: format breakdown if multi-format
+    # Per-competition breakdown if multi-format
     breakdown = data.get('competition_breakdown', {})
     nonzero = {c: s for c, s in breakdown.items() if s.get('balls', 0) > 0}
-    breakdown_line = ""
     if len(nonzero) >= 2:
-        parts = []
-        for comp, s in sorted(nonzero.items(),
-                              key=lambda kv: kv[1]['balls'], reverse=True):
-            avg_str = _fmt(s.get('avg'), '.1f')
-            parts.append(f"{comp.upper()} ({s['balls']} balls, avg {avg_str})")
-        breakdown_line = " The matchup is split across " + ", ".join(parts) + "."
+        parts = [f"{c.upper()} ({s['balls']} balls, avg {_fmt(s.get('avg'))})"
+                 for c, s in sorted(nonzero.items(), key=lambda kv: kv[1]['balls'], reverse=True)]
+        out += " The matchup is split across " + ", ".join(parts) + "."
 
-    # Sentence 5: sample caveat
-    caveat = ""
     if n_balls < SMALL_SAMPLE_THRESHOLD:
-        caveat = (f" Sample size is modest ({n_balls} balls); "
-                  f"the pattern is suggestive rather than conclusive.")
+        out += (f" Sample size is modest ({n_balls} balls); "
+                f"the pattern is suggestive rather than conclusive.")
+    return out
 
-    return headline + matchup_line + phase_line + breakdown_line + caveat
-
-
-# ---------- Hindi report ----------
 
 def _report_hi(data: dict) -> str:
-    """Generate the Hindi scout report (Star Sports Hindi register)."""
     if 'message' in data:
         return data['message']
 
+    from .players import display_name, load_display_names
     overrides = load_display_names()
     batter = display_name(data['batter'], overrides)
     bowler = display_name(data['bowler'], overrides)
-    scope = _format_scope_hi(data.get('format'), data.get('competition'))
+    scope = _scope_hi(data.get('format'), data.get('competition'))
     n_balls = data['sample_size']
     n_matches = data['matches_played']
 
-    matchup = data['overall_matchup']
-    baseline = data['overall_baseline']
+    m, b = data['overall_matchup'], data['overall_baseline']
+    m_avg, m_sr, b_avg, b_sr = m['avg'], m['sr'], b['avg'], b['sr']
 
-    m_avg = matchup['avg']
-    m_sr = matchup['sr']
-    b_avg = baseline['avg']
-    b_sr = baseline['sr']
-
-    # Sentence 1: headline finding
     if m_avg is not None and b_avg is not None:
         if m_avg < b_avg * 0.8:
             edge = f"इस सामना में {bowler} को स्पष्ट बढ़त मिली है"
         elif m_avg > b_avg * 1.2:
             edge = f"{batter} ने {bowler} को सामान्य से बेहतर खेला है"
         else:
-            edge = f"यह सामना मोटे तौर पर बराबरी का रहा है"
+            edge = "यह सामना मोटे तौर पर बराबरी का रहा है"
     else:
         edge = f"{batter} और {bowler} के बीच का सामना संतुलित है"
 
-    headline = (
-        f"{scope} में {n_matches} मैचों की {n_balls} गेंदों में, "
-        f"{edge}।"
-    )
+    out = f"{scope} में {n_matches} मैचों की {n_balls} गेंदों में, {edge}।"
+    out += (f" {batter} का {bowler} के सामने औसत {_fmt(m_avg)} है "
+            f"(करियर औसत: {_fmt(b_avg)}), और स्ट्राइक रेट {_fmt(m_sr)} है "
+            f"(करियर: {_fmt(b_sr)})।")
 
-    # Sentence 2: matchup vs baseline
-    matchup_line = (
-        f" {batter} का {bowler} के सामने औसत {_fmt(m_avg, '.1f')} है "
-        f"(करियर औसत: {_fmt(b_avg, '.1f')}), "
-        f"और स्ट्राइक रेट {_fmt(m_sr, '.1f')} है "
-        f"(करियर: {_fmt(b_sr, '.1f')})।"
-    )
+    phases_by_format = data.get('phases_by_format', {})
+    multi = data.get('format') is None and data.get('competition') is None
+    sharp = _find_sharpest_phase(phases_by_format)
+    if sharp:
+        fmt, phase, p = sharp
+        out += " " + _phase_sentence_hi(fmt, phase, p, multi)
 
-    # Sentence 3: phase narrative — only for T20 scopes
-    phase_line = ""
-    if _is_t20_scope(data.get('format'), data.get('competition')):
-        notable = _find_notable_phase(data.get('phases', {}), language='hi')
-        if notable:
-            phase_line = " " + notable
-
-    # Sentence 4: format breakdown
     breakdown = data.get('competition_breakdown', {})
     nonzero = {c: s for c, s in breakdown.items() if s.get('balls', 0) > 0}
-    breakdown_line = ""
     if len(nonzero) >= 2:
-        comp_labels_hi = {
-            'ipl': 'आईपीएल', 't20i': 'T20I', 'odi': 'वनडे',
-            'test': 'टेस्ट', 'bbl': 'बीबीएल', 'psl': 'पीएसएल', 'cpl': 'सीपीएल',
-        }
-        parts = []
-        for comp, s in sorted(nonzero.items(),
-                              key=lambda kv: kv[1]['balls'], reverse=True):
-            label = comp_labels_hi.get(comp, comp)
-            avg_str = _fmt(s.get('avg'), '.1f')
-            parts.append(f"{label} ({s['balls']} गेंदें, औसत {avg_str})")
-        breakdown_line = " यह सामना फैला है " + ", ".join(parts) + " में।"
+        comp_hi = {'ipl': 'आईपीएल', 't20i': 'T20I', 'odi': 'वनडे',
+                   'test': 'टेस्ट', 'bbl': 'बीबीएल', 'psl': 'पीएसएल', 'cpl': 'सीपीएल'}
+        parts = [f"{comp_hi.get(c, c)} ({s['balls']} गेंदें, औसत {_fmt(s.get('avg'))})"
+                 for c, s in sorted(nonzero.items(), key=lambda kv: kv[1]['balls'], reverse=True)]
+        out += " यह सामना फैला है " + ", ".join(parts) + " में।"
 
-    # Sentence 5: sample caveat
-    caveat = ""
     if n_balls < SMALL_SAMPLE_THRESHOLD:
-        caveat = (f" नमूना सीमित है ({n_balls} गेंदें); "
-                  f"पैटर्न संकेत देता है, निष्कर्ष नहीं।")
+        out += f" नमूना सीमित है ({n_balls} गेंदें); पैटर्न संकेत देता है, निष्कर्ष नहीं।"
+    return out
 
-    return headline + matchup_line + phase_line + breakdown_line + caveat
-
-
-# ---------- Public API ----------
 
 def generate_report(data: dict, language: str = 'en') -> str:
-    """
-    Generate a scout report paragraph from compare_matchup_to_baseline output.
-
-    Args:
-        data: The dict returned by compare_matchup_to_baseline().
-        language: 'en' for English (default), 'hi' for Hindi.
-
-    Returns:
-        A clean prose paragraph suitable for embedding in scout reports,
-        coach briefings, social posts, or web app output.
-    """
     if language == 'hi':
         return _report_hi(data)
     elif language == 'en':
         return _report_en(data)
-    else:
-        raise ValueError(f"Unsupported language: {language}. Use 'en' or 'hi'.")
+    raise ValueError(f"Unsupported language: {language}. Use 'en' or 'hi'.")

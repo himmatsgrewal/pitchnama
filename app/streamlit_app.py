@@ -131,7 +131,7 @@ with col2:
         options=player_options,
         format_func=lambda x: x['label'] + (f"  ·  {x['country']}" if x['country'] else ""),
         index=None,
-        placeholder="Type a name — full or short…",
+        placeholder="Type a name...",
         key="bowler_select",
     )
 
@@ -228,28 +228,41 @@ if analyze:
         ])
         st.dataframe(comp_df, hide_index=True, use_container_width=True)
 
-    # ---------- Phase breakdown (T20 only) ----------
+    # ---------- Phase breakdown (format-aware, per format) ----------
 
-    phases = data.get('phases', {})
-    nonzero_phases = {p: s for p, s in phases.items()
-                      if s.get('matchup_balls', 0) > 0}
-    if nonzero_phases:
+    phases_by_format = data.get('phases_by_format', {})
+
+    # Build a table for each format that has phase data
+    format_order = ['T20', 'ODI', 'Test']
+    format_labels = {'T20': 'T20 phases', 'ODI': 'ODI phases', 'Test': 'Test phases (by ball age)'}
+
+    any_phases = any(
+        any(s.get('matchup_balls', 0) > 0 for s in phases.values())
+        for phases in phases_by_format.values()
+    )
+
+    if any_phases:
         st.divider()
-        st.subheader("Phase breakdown (T20 phases)")
-        phase_df = pd.DataFrame([
-            {
-                'Phase': p,
-                'Balls': s['matchup_balls'],
-                'Matchup avg': f"{s['matchup_avg']:.1f}" if s.get('matchup_avg') is not None else "—",
-                'Baseline avg': f"{s['baseline_avg']:.1f}" if s.get('baseline_avg') is not None else "—",
-                'Matchup SR': f"{s['matchup_sr']:.1f}" if s.get('matchup_sr') is not None else "—",
-                'Baseline SR': f"{s['baseline_sr']:.1f}" if s.get('baseline_sr') is not None else "—",
-            }
-            for p, s in nonzero_phases.items()
-        ])
-        st.dataframe(phase_df, hide_index=True, use_container_width=True)
-        if fmt != 'T20' and comp not in ('ipl', 't20i', 'bbl', 'psl', 'cpl'):
-            st.caption("ℹ️ Phase definitions are T20-based; shown here for diagnostic purposes only.")
+        st.subheader("Phase breakdown")
+        for fmt_key in format_order:
+            phases = phases_by_format.get(fmt_key, {})
+            nonzero = {p: s for p, s in phases.items()
+                       if s.get('matchup_balls', 0) > 0}
+            if not nonzero:
+                continue
+            st.markdown(f"**{format_labels[fmt_key]}**")
+            phase_df = pd.DataFrame([
+                {
+                    'Phase': p,
+                    'Balls': s['matchup_balls'],
+                    'Matchup avg': f"{s['matchup_avg']:.1f}" if s.get('matchup_avg') is not None else "—",
+                    'Baseline avg': f"{s['baseline_avg']:.1f}" if s.get('baseline_avg') is not None else "—",
+                    'Matchup SR': f"{s['matchup_sr']:.1f}" if s.get('matchup_sr') is not None else "—",
+                    'Baseline SR': f"{s['baseline_sr']:.1f}" if s.get('baseline_sr') is not None else "—",
+                }
+                for p, s in nonzero.items()
+            ])
+            st.dataframe(phase_df, hide_index=True, use_container_width=True)
 
     # ---------- Bilingual scout reports ----------
 
