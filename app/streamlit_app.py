@@ -121,7 +121,7 @@ with col1:
         options=player_options,
         format_func=lambda x: x['label'] + (f"  ·  {x['country']}" if x['country'] else ""),
         index=None,
-        placeholder="Type a name — full or short…",
+        placeholder="Type a name...",
         key="batter_select",
     )
 

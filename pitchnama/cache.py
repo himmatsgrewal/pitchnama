@@ -8,12 +8,9 @@ The cache file lives at data/deliveries.parquet and is read instantly
 (~50 ms) by all analysis code. The raw JSON files are parsed exactly once
 per build.
 
-Pipeline:
-    Build (run once, or when new data is added):
-        Raw JSON files (multiple folders)  →  parse  →  unified DataFrame  →  Parquet
-
-    Load (every analysis call):
-        Parquet file  →  pandas DataFrame  (instant)
+The `wicket` column counts ONLY bowler-credited dismissals (bowled, caught,
+lbw, stumped, caught & bowled, hit wicket). Run-outs and other non-bowler
+dismissals are NOT counted, since they are not credited to the bowler.
 """
 
 import os
@@ -34,7 +31,6 @@ CACHE_PATH = "data/deliveries.parquet"
 
 
 # T20 / ODI / Test classification, derived from dataset code.
-# Used downstream by analysis code so phase definitions can adapt.
 FORMAT_BY_CODE = {
     'ipl':  'T20',
     't20i': 'T20',
@@ -44,6 +40,23 @@ FORMAT_BY_CODE = {
     'odi':  'ODI',
     'test': 'Test',
 }
+
+
+# Dismissal kinds credited to the bowler. Everything else (run out, retired
+# hurt, obstructing the field, etc.) is NOT the bowler's wicket.
+BOWLER_CREDITED_DISMISSALS = {
+    'bowled', 'caught', 'lbw', 'stumped', 'caught and bowled', 'hit wicket',
+}
+
+
+def _is_bowler_wicket(delivery: dict) -> bool:
+    """True only if a wicket fell AND it is credited to the bowler."""
+    if 'wickets' not in delivery:
+        return False
+    for w in delivery['wickets']:
+        if w.get('kind', '').lower() in BOWLER_CREDITED_DISMISSALS:
+            return True
+    return False
 
 
 def _parse_dataset(code: str, verbose: bool = True) -> list[dict]:
@@ -90,7 +103,7 @@ def _parse_dataset(code: str, verbose: bool = True) -> list[dict]:
                 'runs_batter': delivery['runs']['batter'],
                 'runs_extras': delivery['runs']['extras'],
                 'runs_total': delivery['runs']['total'],
-                'wicket': 'wickets' in delivery,
+                'wicket': _is_bowler_wicket(delivery),
             })
 
     if verbose:
@@ -103,13 +116,6 @@ def build_cache(output_path: str = CACHE_PATH, verbose: bool = True) -> pd.DataF
     """
     Parse every Cricsheet dataset and save all deliveries to a unified
     Parquet file.
-
-    Args:
-        output_path: Where to save the Parquet file.
-        verbose: If True, print progress per dataset.
-
-    Returns:
-        The DataFrame that was saved.
     """
     if verbose:
         print("Building unified PitchNama cache...")
@@ -142,7 +148,6 @@ def build_cache(output_path: str = CACHE_PATH, verbose: bool = True) -> pd.DataF
 def load_cache(cache_path: str = CACHE_PATH) -> pd.DataFrame:
     """
     Load the cached deliveries DataFrame from disk.
-
     Raises FileNotFoundError if the cache doesn't exist. Run build_cache first.
     """
     if not os.path.exists(cache_path):
