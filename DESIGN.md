@@ -29,7 +29,7 @@ while being credible enough to impress professional cricket-data employers
 | **Vibe** | Broadcast sports energy (Star/Sky TV) + chronicle authority underneath |
 | **Emotional arc** | LIGHT, welcoming landing page → smooth transition → DARK "floodlit stadium" analysis screen |
 | **Primary colour** | Vivid pitch GREEN (locked) |
-| **Contrast colour** | Bright GOLD (locked as concept; exact hex = TBD, see below) |
+| **Contrast colour** | GOLD — `#e0a92e` (warm amber-gold; chosen by eyeball test on dark) |
 | **Colour meaning** | Green vs Gold = batter vs bowler in all head-to-head visuals |
 | **Landing page** | Full-screen hero · stylised/illustrated pitch background (NOT a photo) · huge name + logo · input (2 players + format) front-and-centre |
 | **Analysis screen** | Dark / floodlit · vivid green + gold data glowing on near-black · big broadcast-style numbers |
@@ -40,12 +40,12 @@ when the user hits **Analyse**, the screen transitions smoothly to dark — like
 day match becoming a night match under floodlights. The contrast between the
 welcoming light landing and the dramatic dark analysis is the core experience.
 
-### Gold — open spec (NOT yet locked to a hex)
-Gold is the hardest colour to get right; a gold that looks rich in theory can turn
-muddy/mustard on near-black. **Do not lock a gold hex from memory.** Requirement:
-a *bright, legible* gold that pops on the dark analysis background, used for the
-bowler side of head-to-head visuals. **Decide the exact hex by eyeballing it
-rendered on the real dark screen** during the build — not in this file.
+### Colour hexes (chosen via on-screen eyeball test)
+- **Green (batter):** `#2ecc71` — vivid pitch green, pops on dark
+- **Gold (bowler):** `#e0a92e` — warm amber-gold (rejected `#f5c518` as too
+  "warning-yellow"; this is richer/premium while still legible on near-black)
+- **Background (floodlit dark):** `#0d1117` near-black; card surfaces `#141b24`
+- These are starting values confirmed in a mockup; fine-tune live during build if needed.
 
 ### Hard rule — NO photos
 No player photos and no copyrighted/stadium photos ANYWHERE (site, charts, cards,
@@ -93,11 +93,22 @@ dismissed every 18 balls."*
 newcomers); the "why" makes it credible (real reasoning, not fake precision).
 Fun + authority in one feature.
 
-## 4b. Still-Open Design Questions
+## 4b. Analysis-Screen Layout (DESIGNED)
 
-1. **Analysis-screen layout** — after it goes dark, what does the user see
-   first / second / third? (headline numbers → upper-hand meter → charts → report?)
-2. **Shareable card design** — layout, what data it shows, branding.
+The dark / floodlit screen, top to bottom:
+1. **Matchup title** (e.g. "Kohli vs Cummins")
+2. **Tilt meter (HERO — always visible)** — needle green↔gold + the "why" line
+3. **Headline numbers (always visible)** — balls · runs · avg · SR · matches
+4. **Tabs (for depth):** Charts · Phases · Report (bilingual EN+Hindi)
+5. **Action button:** Generate Card
+
+Reasoning: hero (meter + key numbers) is always visible so newcomers can't miss
+the signature; deeper detail lives in tabs so it doesn't overwhelm. Single
+cinematic story continues from the floodlit reveal into the hero.
+
+## 4c. Still-Open Design Questions
+
+1. **Shareable card design** — layout, what data it shows, branding.
 
 ---
 
