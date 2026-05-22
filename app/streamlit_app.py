@@ -23,6 +23,7 @@ from pitchnama.cache import load_cache
 from pitchnama.matchup import compare_matchup_to_baseline
 from pitchnama.players import load_registry, load_display_names, display_name
 from pitchnama.scout_report import generate_report
+from pitchnama.charts import matchup_vs_baseline_bars
 
 
 # ---------- Page setup ----------
@@ -206,6 +207,14 @@ if analyze:
               delta=f"vs career {baseline['sr']:.1f}",
               delta_color="off")
     m6.metric("Matches", f"{data['matches_played']}")
+
+    # ---------- Matchup vs baseline chart ----------
+    fig = matchup_vs_baseline_bars(
+        data,
+        batter_choice['label'],
+        bowler_choice['label'],
+    )
+    st.plotly_chart(fig, use_container_width=True)
 
     # ---------- Per-competition breakdown ----------
 
