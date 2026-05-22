@@ -69,14 +69,35 @@ brand-owned art, not a stock/real photo.
 
 ---
 
-## 4. Open Design Questions (still to decide)
+## 4. The "Upper Hand" Feature (DESIGNED — flagship)
 
-1. **The "upper hand" feature** — (a) methodology: what does the % / score actually
-   measure? (likely a blend of how far the batter's avg & strike rate diverge from
-   their baseline, with sample-size honesty). (b) visual: gauge? meter? bar?
-2. **Analysis-screen layout** — after it goes dark, what does the user see
-   first / second / third? (headline numbers → gauge → charts → report?)
-3. **Shareable card design** — layout, what data it shows, branding.
+**Measures (equally weighted):**
+- **Scoring axis** — how far the batter's strike rate & average diverge from their
+  own baseline (same scope) in this matchup.
+- **Dismissal axis** — matchup balls-per-dismissal vs the batter's baseline
+  balls-per-dismissal.
+- All relative to the batter's OWN baseline (the credible, analyst-correct approach).
+
+**Visual:** a TILT METER — needle leans toward GREEN (batter) or GOLD (bowler).
+Below it, a short "why" line, e.g. *"Bowler edge — strike rate down 22%,
+dismissed every 18 balls."*
+
+**Honesty rules (non-negotiable for credibility):**
+- Under ~30 balls → needle shown FAINT + "small sample" label. Never a confident
+  verdict on thin data.
+- "Never dismissed" → handled cleanly (no divide-by-zero; counts as batter edge on
+  the dismissal axis).
+- Most meaningful within a single format; same-scope baseline handles this.
+
+**Why it's the signature:** the needle is exciting (instant "who's winning" for
+newcomers); the "why" makes it credible (real reasoning, not fake precision).
+Fun + authority in one feature.
+
+## 4b. Still-Open Design Questions
+
+1. **Analysis-screen layout** — after it goes dark, what does the user see
+   first / second / third? (headline numbers → upper-hand meter → charts → report?)
+2. **Shareable card design** — layout, what data it shows, branding.
 
 ---
 
