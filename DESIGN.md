@@ -106,11 +106,26 @@ Reasoning: hero (meter + key numbers) is always visible so newcomers can't miss
 the signature; deeper detail lives in tabs so it doesn't overwhelm. Single
 cinematic story continues from the floodlit reveal into the hero.
 
-## 4c. Still-Open Design Questions
+## 4c. Shareable Card (DESIGNED — last design piece)
 
-1. **Shareable card design** — layout, what data it shows, branding.
+The "Generate shareable card" output — a branded image for Instagram/WhatsApp.
 
----
+**Approach: "rich" (option A)** — shows depth, signals serious analytics.
+- **Hero (top):** matchup title (batter green / bowler gold) + the tilt meter +
+  verdict ("Bowler edge · strong")
+- **Below:** a clean, well-spaced stat grid (balls, avg, SR, outs, matches, SR-drop)
+- **Branding:** "PitchNama" wordmark (gold "Nama") top; footer
+  "pitchnama.com · the chronicle of every contest"
+- **Colours:** dark/floodlit background, green+gold, matches the analysis screen
+- **NO player photos** — data graphics + branding only
+
+**Build note:** rich must read as *authoritative/premium*, NOT cluttered. Keep the
+hero clearly dominant, generous spacing in the stat grid. Watch busyness.
+
+**Sizes:** build SQUARE (1:1, Instagram feed) first and perfect it; then add a
+PORTRAIT (4:5 / 9:16 story-reel) version of the same design.
+
+(Stage 0 design is now COMPLETE. Next: Stage 1 — FastAPI wrapper around the engine.)
 
 ## 5. The Build Path — "Path B" (custom web front-end)
 
