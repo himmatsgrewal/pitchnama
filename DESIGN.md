@@ -31,7 +31,7 @@ while being credible enough to impress professional cricket-data employers
 | **Primary colour** | Vivid pitch GREEN (locked) |
 | **Contrast colour** | GOLD — `#e0a92e` (warm amber-gold; chosen by eyeball test on dark) |
 | **Colour meaning** | Green vs Gold = batter vs bowler in all head-to-head visuals |
-| **Landing page** | Full-screen hero · stylised/illustrated pitch background (NOT a photo) · huge name + logo · input (2 players + format) front-and-centre |
+| **Landing page** | Bright WHITE base · GREEN header bar (brand identity, "real cricket site" feel) · green/gold accents · headline "Every matchup, decoded." · two-player input (batter green / bowler gold) + format selector · stat line (4.4M deliveries · 9,366 matches · 7 competitions). Light landing → dark floodlit analysis arc preserved. |
 | **Analysis screen** | Dark / floodlit · vivid green + gold data glowing on near-black · big broadcast-style numbers |
 
 ### The "floodlit transition"
