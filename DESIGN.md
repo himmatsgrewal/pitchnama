@@ -140,6 +140,13 @@ formula. This is a dedicated session, not a quick add-on.
 Concept confirmed by Himmat against a live mockup — "yes EXACTLY this." Target:
 - Semicircular gauge: GREEN (batter) left half, GOLD (bowler) right half, needle
   from centre pivot. Straight up = even; lean = edge; lean amount = one-sidedness.
+- **THE RULE (Himmat's words):** the needle leans TOWARD WHOEVER HAS THE ADVANTAGE.
+  Batter on top → leans to the batter's (green/left) side. Bowler on top → leans to
+  the bowler's (gold/right) side. Amount of lean = size of the advantage. The
+  needle direction and the verdict ("why" line) MUST ALWAYS AGREE — sanity-check
+  every render: if the text says "bowler edge," the needle must point at the bowler.
+  (Caught in mockup: a draw had "bowler edge" text but the needle leaning at the
+  batter — wrong. Always verify needle vs verdict.)
 - On the floodlit DARK screen (`#0d1117`): green + gold GLOW on near-black.
 - **Needle ANIMATES:** sweeps from centre, slight overshoot, then settles at its
   angle (broadcast "powering up" feel). Verdict + headline numbers fade in after
