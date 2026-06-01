@@ -10,7 +10,11 @@ from typing import Optional
 
 from fastapi import FastAPI
 
-from pitchnama.matchup import analyze_matchup
+from pitchnama.matchup import (
+    analyze_matchup,
+    analyze_batter_overall,
+    compare_matchup_to_baseline,
+)
 
 app = FastAPI(title="PitchNama API")
 
@@ -35,6 +39,58 @@ def matchup(
         /matchup?batter=RG Sharma&bowler=PJ Cummins
     """
     return analyze_matchup(
+        batter_name=batter,
+        bowler_name=bowler,
+        format=match_format,
+        competition=competition,
+    )
+
+
+@app.get("/baseline")
+def baseline(
+    batter: str,
+    match_format: Optional[str] = None,
+    competition: Optional[str] = None,
+) -> dict:
+    """
+    Return a batter's own baseline (across all bowlers in scope).
+
+    This is the reference the tilt meter measures a matchup against.
+
+    Example:
+        /baseline?batter=RG Sharma
+    """
+    result = analyze_batter_overall(
+        batter_name=batter,
+        format=match_format,
+        competition=competition,
+    )
+    if result is None:
+        return {
+            "batter": batter,
+            "match_format": match_format,
+            "competition": competition,
+            "message": "No deliveries found for this batter in this scope.",
+        }
+    return result
+
+
+@app.get("/compare")
+def compare(
+    batter: str,
+    bowler: str,
+    match_format: Optional[str] = None,
+    competition: Optional[str] = None,
+) -> dict:
+    """
+    Compare a matchup to the batter's own baseline.
+
+    This is the data the 'who has the upper hand' tilt meter will use.
+
+    Example:
+        /compare?batter=RG Sharma&bowler=PJ Cummins
+    """
+    return compare_matchup_to_baseline(
         batter_name=batter,
         bowler_name=bowler,
         format=match_format,
