@@ -93,6 +93,11 @@ dismissed every 18 balls."*
 newcomers); the "why" makes it credible (real reasoning, not fake precision).
 Fun + authority in one feature.
 
+**Data source (Stage 1):** the `/compare` API endpoint already returns the
+matchup-vs-baseline numbers (scoring + dismissal axes, per format) this meter
+reads. `matchup_avg: null` from the engine means "never dismissed" — handle as
+the batter-edge case above, never a crash.
+
 ## 4b. Analysis-Screen Layout (DESIGNED)
 
 The dark / floodlit screen, top to bottom:
@@ -125,7 +130,7 @@ hero clearly dominant, generous spacing in the stat grid. Watch busyness.
 **Sizes:** build SQUARE (1:1, Instagram feed) first and perfect it; then add a
 PORTRAIT (4:5 / 9:16 story-reel) version of the same design.
 
-(Stage 0 design is now COMPLETE. Next: Stage 1 — FastAPI wrapper around the engine.)
+(Stage 0 design COMPLETE. Stage 1 FastAPI wrapper COMPLETE — see §5. Next: Stage 2 — front-end fundamentals + Node.js.)
 
 ## 5. The Build Path — "Path B" (custom web front-end)
 
@@ -139,9 +144,9 @@ vision, and polishing it would be throwaway work.
 
 | Stage | What | Notes |
 |---|---|---|
-| 0 | Design decisions | Mostly done; finish gauge + layout + cards |
-| 1 | FastAPI wrapper around engine | Python — comfortable ground |
-| 2 | Front-end fundamentals + install Node.js | The real learning curve |
+| 0 | Design decisions | ✅ DONE — brand, colours, tilt meter, layout, cards all locked |
+| 1 | FastAPI wrapper around engine | ✅ DONE — `api.py` at repo root; endpoints `/matchup`, `/baseline`, `/compare` return JSON; verified vs known-good; committed |
+| 2 | Front-end fundamentals + install Node.js | ◀ NEXT — the real learning curve |
 | 3 | Build the site | Landing, transition, analysis screen, charts, gauge, cards |
 | 4 | Deploy + clean hosting + Instagram prep | The ~$5/mo hosting moment |
 
@@ -173,13 +178,14 @@ vision, and polishing it would be throwaway work.
 - Verify cricket facts against data, not memory. Verify numbers before committing.
 - Lowercase/snake_case Python, type hints, imperative commits, DRY. Delete scratch files before commit.
 - **Test pair:** Rohit Sharma (RG Sharma) vs Pat Cummins (PJ Cummins).
-  Known-good: 532 balls all-formats / 46 IPL / 225 Test.
+  Known-good: 532 balls all-formats / 46 IPL / 225 Test / 15 dismissals all-formats.
 - Licensing: code MIT; data credits Cricsheet (CC BY-SA 4.0) + cricketdata (GPL-3).
 
 ---
 
-## 8. What's Already Done (the engine — COMPLETE, do not rebuild)
+## 8. What's Already Done
 
+**The engine (COMPLETE, do not rebuild):**
 4.4M+ deliveries · 9,366 matches · 7 competitions · 3 formats (Cricsheet).
 Modular Python package (cache, matchup, scout_report, players, charts, data_loader).
 Format-aware phases (T20 / ODI / Test ball-age). Bilingual EN+Hindi reports.
@@ -187,3 +193,12 @@ Full player names + countries (cricketdata player_meta, joined on cricsheet_id) 
 ~374 curated overrides + multi-field search. Dismissal logic fixed (bowler-credited
 only; run-outs excluded). Plotly matchup-vs-baseline chart. Live on Streamlit Cloud.
 Working GitHub Actions daily auto-update. pitchnama.com owned (URL-forwarding for now).
+
+**Stage 1 — the API bridge (COMPLETE):**
+`api.py` at repo root wraps the untouched engine in FastAPI. Three endpoints, all
+returning JSON, all verified against known-good and committed to GitHub:
+- `/matchup?batter=&bowler=` → head-to-head (calls `analyze_matchup`)
+- `/baseline?batter=` → batter's own baseline (calls `analyze_batter_overall`)
+- `/compare?batter=&bowler=` → matchup vs baseline, feeds the tilt meter (calls `compare_matchup_to_baseline`)
+Web layer uses `match_format` param → passed to engine's `format` (avoids the
+Python `format` builtin clash). Run locally: `python -m uvicorn api:app --reload`.
