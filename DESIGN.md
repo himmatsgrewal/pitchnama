@@ -98,6 +98,57 @@ matchup-vs-baseline numbers (scoring + dismissal axes, per format) this meter
 reads. `matchup_avg: null` from the engine means "never dismissed" — handle as
 the batter-edge case above, never a crash.
 
+### 4a-i. Tilt formula — DRAFT (not yet calibrated)
+
+Core principle confirmed with Himmat: **the needle's tilt must match how one-sided
+the contest actually is.** Big domination → big tilt; slight edge → slight tilt.
+A glance at the angle should *feel* true before any number is read. Output is a
+single needle value from −100 (full gold / bowler) to +100 (full green / batter),
+0 = even.
+
+Two axes, equally weighted, both vs the batter's OWN baseline (same scope):
+
+- **Scoring axis = strike rate only.** `(matchup_sr / baseline_sr − 1) × 100`.
+  DECISION: use SR only, NOT average — average folds dismissals into it and would
+  double-count with the dismissal axis. SR-only keeps the axes clean and honest.
+- **Dismissal axis = balls per dismissal.**
+  `(matchup_bpd / baseline_bpd − 1) × 100`, where bpd = balls / dismissals.
+  Batter survives longer than baseline → positive (batter edge); gets out more
+  often → negative (bowler edge). "Never dismissed" (0 outs) → bpd is infinite →
+  cap at max positive (strong batter edge), never divide by zero.
+
+Raw needle = mean of the two axes. BUT raw % is lopsided (SR can fall 100% but rise
+past 100%), so the raw value must be **shaped** before display so tilt matches
+intuition (≈10% = slight, ≈80% = lopsided). Shaping approach NOT yet chosen —
+options on the table: (A) cap-and-scale, (B) smooth curve / sigmoid [Claude's lean],
+(C) calibrate against known pairs [do regardless, as validation].
+
+**Worked example — RG Sharma vs PJ Cummins, all formats (verified data):**
+- Scoring: matchup SR 77.07 / baseline SR 94.23 = 0.818 → −18.2
+- Dismissal: matchup bpd 532/15 = 35.5 / baseline bpd 28686/684 = 41.9 = 0.847 → −15.3
+- Raw needle ≈ −16.75 → modest GOLD (bowler) edge.
+- "Why" line: *"Bowler edge — strike rate down 18%, dismissed every 36 balls vs his usual 42."*
+- Sanity check: a modest-but-clear Cummins edge matches cricket reality. ✅
+
+**NEXT for this feature:** pick the shaping approach (A/B/C) and CALIBRATE against
+~5–6 known pairs (a known domination, a known even contest, a known slight edge)
+until the needle agrees with cricket reality in all of them. Only then lock the
+formula. This is a dedicated session, not a quick add-on.
+
+### 4a-ii. Tilt meter — look & motion (CONFIRMED via concept mockup)
+
+Concept confirmed by Himmat against a live mockup — "yes EXACTLY this." Target:
+- Semicircular gauge: GREEN (batter) left half, GOLD (bowler) right half, needle
+  from centre pivot. Straight up = even; lean = edge; lean amount = one-sidedness.
+- On the floodlit DARK screen (`#0d1117`): green + gold GLOW on near-black.
+- **Needle ANIMATES:** sweeps from centre, slight overshoot, then settles at its
+  angle (broadcast "powering up" feel). Verdict + headline numbers fade in after
+  the needle lands.
+- Below needle: verdict line (e.g. "Bowler edge · modest") + the "why" line.
+- Below that: headline numbers (avg · SR · dismissals · etc).
+- Build PLAIN + correct first, THEN add glow/animation (function before polish).
+- Will be data-driven from `/compare` (redraws for any matchup), not hardcoded.
+
 ## 4b. Analysis-Screen Layout (DESIGNED)
 
 The dark / floodlit screen, top to bottom:
@@ -130,7 +181,9 @@ hero clearly dominant, generous spacing in the stat grid. Watch busyness.
 **Sizes:** build SQUARE (1:1, Instagram feed) first and perfect it; then add a
 PORTRAIT (4:5 / 9:16 story-reel) version of the same design.
 
-(Stage 0 design COMPLETE. Stage 1 FastAPI wrapper COMPLETE — see §5. Next: Stage 2 — front-end fundamentals + Node.js.)
+(Stage 0 design COMPLETE. Stage 1 FastAPI wrapper COMPLETE — see §5. Tilt-meter
+concept + look/motion confirmed; formula drafted, calibration pending — see §4a.
+Next: Stage 2 — front-end fundamentals + Node.js.)
 
 ## 5. The Build Path — "Path B" (custom web front-end)
 
