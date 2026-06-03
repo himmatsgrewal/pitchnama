@@ -20,6 +20,18 @@ import requests
 # Where all raw match files live (under data/)
 DATA_ROOT = "data"
 
+# Browser-like headers. Cricsheet rejects bare bot requests (HTTP 415), so we
+# identify as a normal browser to fetch the public data they intend to share.
+BROWSER_HEADERS = {
+    'User-Agent': (
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+        'AppleWebKit/537.36 (KHTML, like Gecko) '
+        'Chrome/124.0.0.0 Safari/537.36'
+    ),
+    'Accept': 'application/zip,application/octet-stream,*/*',
+    'Accept-Language': 'en-US,en;q=0.9',
+}
+
 # Cricsheet datasets we use, indexed by short code.
 # Each entry: (Cricsheet zip URL, subfolder name under data/, human-readable label)
 CRICSHEET_DATASETS = {
@@ -60,8 +72,9 @@ def download_dataset(code: str, verbose: bool = True, force: bool = False) -> st
 
     Path(DATA_ROOT).mkdir(parents=True, exist_ok=True)
 
-    # Decide whether to download
-    headers = {}
+    # Decide whether to download. Start from browser-like headers so Cricsheet's
+    # bot protection doesn't reject us (HTTP 415).
+    headers = dict(BROWSER_HEADERS)
     if os.path.exists(zip_path) and not force:
         # Tell Cricsheet "only send if newer than my local copy"
         local_mtime = os.path.getmtime(zip_path)
