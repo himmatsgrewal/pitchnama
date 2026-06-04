@@ -31,7 +31,7 @@ while being credible enough to impress professional cricket-data employers
 | **Primary colour** | Vivid pitch GREEN (locked) |
 | **Contrast colour** | GOLD — two-gold rule (see below) |
 | **Colour meaning** | Green vs Gold = batter vs bowler in all head-to-head visuals |
-| **Landing page** | Bright WHITE base · GREEN header bar (brand identity, "real cricket site" feel) · green/gold accents · headline "Every matchup, decoded." · two-player input (batter green / bowler gold) + format selector · stat line (4.4M deliveries · 9,366 matches · 7 competitions). Light landing → dark floodlit analysis arc preserved. |
+| **Landing page** | Bright WHITE base · GREEN header bar (brand identity, "real cricket site" feel) · green/gold accents · headline "Every matchup, decoded." · two-player input (batter green / bowler gold) + format selector · stat line (live: deliveries · matches · competitions). Light landing → dark floodlit analysis arc preserved. |
 | **Analysis screen** | Dark / floodlit · vivid green + gold data glowing on near-black · big broadcast-style numbers |
 
 ### The "floodlit transition"
@@ -217,8 +217,8 @@ vision, and polishing it would be throwaway work.
 | Stage | What | Notes |
 |---|---|---|
 | 0 | Design decisions | ✅ DONE — brand, colours, tilt meter, layout, cards all locked |
-| 1 | FastAPI wrapper around engine | ✅ DONE — `api.py` at repo root; endpoints `/matchup`, `/baseline`, `/compare`, `/players` return JSON; verified vs known-good; committed |
-| 2 | Front-end fundamentals + build the site | ◀ IN PROGRESS — Node.js + npm installed; React scaffolded via Vite (JavaScript) in `frontend/`; Tailwind v4 wired (`@tailwindcss/vite` in `vite.config.js`, `@import "tailwindcss"` + `@theme` brand colours in `index.css`); landing page built in `App.jsx` (green header, headline, colour-coded inputs, format dropdown, Analyse button, stat line). NEXT: searchable player dropdown, then floodlit transition + analysis screen + charts + gauge + cards |
+| 1 | FastAPI wrapper around engine | ✅ DONE — `api.py` at repo root; endpoints `/matchup`, `/baseline`, `/compare`, `/players`, `/stats` return JSON; verified vs known-good; committed |
+| 2 | Front-end fundamentals + build the site | ◀ IN PROGRESS — Node.js + npm installed; React scaffolded via Vite (JavaScript) in `frontend/`; Tailwind v4 wired (`@tailwindcss/vite` + `@theme` brand colours in `index.css`). Landing page built in `App.jsx`: green header, headline, format dropdown, Analyse button, AND a live searchable player dropdown (fetches `/players`, filters in-browser, shows "label · country", returns `scorecard`) + a live stat line (fetches `/stats`, never hardcoded). CORS enabled on the API for the Vite dev origin. NEXT: wire Analyse to fetch real matchup data, then build the dark floodlit analysis screen (tilt-meter hero, headline numbers, tabs, charts, card) |
 | 3 | (folded into Stage 2) | — |
 | 4 | Deploy + clean hosting + Instagram prep | The ~$5/mo hosting moment |
 
@@ -265,7 +265,8 @@ vision, and polishing it would be throwaway work.
 ## 8. What's Already Done
 
 **The engine (COMPLETE, do not rebuild):**
-4.4M+ deliveries · 9,366 matches · 7 competitions · 3 formats (Cricsheet).
+4.4M+ deliveries · 9,000+ matches · 7 competitions · 3 formats (Cricsheet), growing
+daily via the auto-update robot.
 Modular Python package (cache, matchup, scout_report, players, charts, data_loader).
 Format-aware phases (T20 / ODI / Test ball-age). Bilingual EN+Hindi reports.
 Full player names + countries (cricketdata player_meta, joined on cricsheet_id) +
@@ -279,14 +280,17 @@ HTTP 415; fixed by adding `BROWSER_HEADERS` to the download request in
 
 **Stage 1 — the API bridge (COMPLETE):**
 `api.py` at repo root wraps the untouched engine in FastAPI. Endpoints, all
-returning JSON, all verified against known-good and committed to GitHub:
+returning JSON, all verified and committed to GitHub:
 - `/matchup?batter=&bowler=` → head-to-head (calls `analyze_matchup`)
 - `/baseline?batter=` → batter's own baseline (calls `analyze_batter_overall`)
 - `/compare?batter=&bowler=` → matchup vs baseline, feeds the tilt meter (calls `compare_matchup_to_baseline`)
 - `/players` → full searchable player list (`label`, `scorecard`, `country`, `search`
   blob), mirrors Streamlit's `get_player_options`; feeds the front-end dropdown
+- `/stats` → live dataset totals (`deliveries`, `matches`, `competitions`) counted
+  from the cache the same way `build_cache` reports them; feeds the live stat line
 Web layer uses `match_format` param → passed to engine's `format` (avoids the
-Python `format` builtin clash). Run locally: `python -m uvicorn api:app --reload`.
+Python `format` builtin clash). CORS enabled for the Vite dev origin
+(`localhost:5173`). Run locally: `python -m uvicorn api:app --reload`.
 
 **Stage 2 — front-end (IN PROGRESS):**
 - Node.js + npm installed (Windows); PowerShell exec-policy fixed with
@@ -294,8 +298,14 @@ Python `format` builtin clash). Run locally: `python -m uvicorn api:app --reload
 - React app scaffolded via Vite (JavaScript) in `frontend/`.
 - Tailwind v4 wired (`@tailwindcss/vite` + `@theme` brand colours in `index.css`).
 - Landing page built in `frontend/src/App.jsx`: green header (Pitch + bright-gold
-  "Nama"), headline "Every matchup, decoded.", tagline, two colour-coded text inputs
-  (batter green / bowler gold), format dropdown, Analyse button (`useState` +
-  placeholder `handleAnalyse`), stat line.
-- NEXT: replace the plain text inputs with a searchable player dropdown (fetches
-  `/players`, filters in-browser, shows "label · country", returns `scorecard`).
+  "Nama"), headline "Every matchup, decoded.", tagline, format dropdown, Analyse
+  button (`useState` + placeholder `handleAnalyse`), stat line.
+- ✅ Searchable player dropdown (reusable `PlayerSelect`, used for batter green /
+  bowler gold): fetches `/players` once, filters in-browser by the `search` blob,
+  shows "label · country", sends `scorecard` up to the app. Matches Streamlit.
+- ✅ Live stat line: fetches `/stats` on load, renders deliveries/matches/competitions
+  from real data, formatted (e.g. "4.4M deliveries · 9,453 matches · 7 competitions").
+  Never hardcoded again.
+- NEXT: wire the Analyse button to fetch real matchup data (first real data on the
+  page), then build the dark floodlit analysis screen — tilt-meter hero, headline
+  numbers, tabs (Charts / Phases / Report), Generate Card.
