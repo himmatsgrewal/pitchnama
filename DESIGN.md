@@ -29,7 +29,7 @@ while being credible enough to impress professional cricket-data employers
 | **Vibe** | Broadcast sports energy (Star/Sky TV) + chronicle authority underneath |
 | **Emotional arc** | LIGHT, welcoming landing page → smooth transition → DARK "floodlit stadium" analysis screen |
 | **Primary colour** | Vivid pitch GREEN (locked) |
-| **Contrast colour** | GOLD — `#e0a92e` (warm amber-gold; chosen by eyeball test on dark) |
+| **Contrast colour** | GOLD — two-gold rule (see below) |
 | **Colour meaning** | Green vs Gold = batter vs bowler in all head-to-head visuals |
 | **Landing page** | Bright WHITE base · GREEN header bar (brand identity, "real cricket site" feel) · green/gold accents · headline "Every matchup, decoded." · two-player input (batter green / bowler gold) + format selector · stat line (4.4M deliveries · 9,366 matches · 7 competitions). Light landing → dark floodlit analysis arc preserved. |
 | **Analysis screen** | Dark / floodlit · vivid green + gold data glowing on near-black · big broadcast-style numbers |
@@ -42,9 +42,17 @@ welcoming light landing and the dramatic dark analysis is the core experience.
 
 ### Colour hexes (chosen via on-screen eyeball test)
 - **Green (batter):** `#2ecc71` — vivid pitch green, pops on dark
-- **Gold (bowler):** `#e0a92e` — warm amber-gold (rejected `#f5c518` as too
-  "warning-yellow"; this is richer/premium while still legible on near-black)
+- **Gold — the TWO-GOLD RULE:** the gold shade changes with the background it sits on.
+  - **Bright gold** `#facc15` (Tailwind: `pitch-gold-bright`) — for the "Nama"
+    wordmark and gold accents on LIGHT / GREEN backgrounds (e.g. the landing
+    header). The warm amber-gold goes muddy on white/green; bright gold stays crisp.
+  - **Warm amber-gold** `#e0a92e` (Tailwind: `pitch-gold`) — the bowler colour on
+    the DARK floodlit analysis screen. Rejected `#f5c518` as too "warning-yellow";
+    this is richer/premium and legible on near-black.
 - **Background (floodlit dark):** `#0d1117` near-black; card surfaces `#141b24`
+- **All five live in the Tailwind `@theme`** (`frontend/src/index.css`):
+  `pitch-green` `#2ecc71` · `pitch-gold` `#e0a92e` · `pitch-gold-bright` `#facc15` ·
+  `floodlit` `#0d1117` · `surface` `#141b24`.
 - These are starting values confirmed in a mockup; fine-tune live during build if needed.
 
 ### Hard rule — NO photos
@@ -66,6 +74,10 @@ brand-owned art, not a stock/real photo.
 - Bilingual scout report (English + Hindi) — already built
 - Buttons including "Generate shareable card"
 - Shareable cards = branded DATA-GRAPHICS (no photos) for Instagram (@pitchnama reserved)
+- **Logo (P+N monogram) — END-OF-PROJECT must-do:** a real original graphic logo,
+  a P + N monogram. Original art only, no photos. Designed LATE, once the built site
+  gives visual context to design against; lives in the header (replacing the current
+  text "PitchNama" wordmark).
 
 ---
 
@@ -190,7 +202,7 @@ PORTRAIT (4:5 / 9:16 story-reel) version of the same design.
 
 (Stage 0 design COMPLETE. Stage 1 FastAPI wrapper COMPLETE — see §5. Tilt-meter
 concept + look/motion confirmed; formula drafted, calibration pending — see §4a.
-Next: Stage 2 — front-end fundamentals + Node.js.)
+Now in Stage 2 — front-end build underway.)
 
 ## 5. The Build Path — "Path B" (custom web front-end)
 
@@ -205,12 +217,17 @@ vision, and polishing it would be throwaway work.
 | Stage | What | Notes |
 |---|---|---|
 | 0 | Design decisions | ✅ DONE — brand, colours, tilt meter, layout, cards all locked |
-| 1 | FastAPI wrapper around engine | ✅ DONE — `api.py` at repo root; endpoints `/matchup`, `/baseline`, `/compare` return JSON; verified vs known-good; committed |
-| 2 | Front-end fundamentals + install Node.js | ◀ NEXT — the real learning curve |
-| 3 | Build the site | Landing, transition, analysis screen, charts, gauge, cards |
+| 1 | FastAPI wrapper around engine | ✅ DONE — `api.py` at repo root; endpoints `/matchup`, `/baseline`, `/compare`, `/players` return JSON; verified vs known-good; committed |
+| 2 | Front-end fundamentals + build the site | ◀ IN PROGRESS — Node.js + npm installed; React scaffolded via Vite (JavaScript) in `frontend/`; Tailwind v4 wired (`@tailwindcss/vite` in `vite.config.js`, `@import "tailwindcss"` + `@theme` brand colours in `index.css`); landing page built in `App.jsx` (green header, headline, colour-coded inputs, format dropdown, Analyse button, stat line). NEXT: searchable player dropdown, then floodlit transition + analysis screen + charts + gauge + cards |
+| 3 | (folded into Stage 2) | — |
 | 4 | Deploy + clean hosting + Instagram prep | The ~$5/mo hosting moment |
 
 **Estimate:** ~8–12 weeks of near-daily 2–3 hr sessions to full completion.
+
+**Two-server dev setup:**
+- FastAPI: `python -m uvicorn api:app --reload` (port 8000, run from ROOT)
+- Vite: `npm run dev` (port 5173, run from `frontend/`)
+- Git always from ROOT.
 
 ---
 
@@ -227,13 +244,15 @@ vision, and polishing it would be throwaway work.
 4. **README is stale** — update it during a dedicated README pass (old tagline,
    wrong match count, T20-only phases, "scout reports in development", "Streamlit
    planned"). Don't put repo link on CV until done.
+5. **Node.js deprecation warning** on the robot workflow — proactive version bump someday.
 
 ---
 
 ## 7. Working Habits & Reference
 
 - Start each session with `git pull` (daily auto-update robot pushes data).
-- Spoon-fed steps: COMPLETE files to paste, one edit at a time, confirm before big changes.
+- Spoon-fed steps: COMPLETE files to paste, confirm before big changes. BATCH layers
+  (one-tiny-step-at-a-time is too repetitive); lead with do-this-now, explain in summary.
 - Direct, honest collaboration; push back on bad ideas; MCQ-style choices when deciding.
 - Verify cricket facts against data, not memory. Verify numbers before committing.
 - Lowercase/snake_case Python, type hints, imperative commits, DRY. Delete scratch files before commit.
@@ -254,11 +273,29 @@ Full player names + countries (cricketdata player_meta, joined on cricsheet_id) 
 only; run-outs excluded). Plotly matchup-vs-baseline chart. Live on Streamlit Cloud.
 Working GitHub Actions daily auto-update. pitchnama.com owned (URL-forwarding for now).
 
+**Maintenance fix (recorded):** the robot's Cricsheet download started failing with
+HTTP 415; fixed by adding `BROWSER_HEADERS` to the download request in
+`data_loader.py`. Action verified green again; auto-update healthy.
+
 **Stage 1 — the API bridge (COMPLETE):**
-`api.py` at repo root wraps the untouched engine in FastAPI. Three endpoints, all
+`api.py` at repo root wraps the untouched engine in FastAPI. Endpoints, all
 returning JSON, all verified against known-good and committed to GitHub:
 - `/matchup?batter=&bowler=` → head-to-head (calls `analyze_matchup`)
 - `/baseline?batter=` → batter's own baseline (calls `analyze_batter_overall`)
 - `/compare?batter=&bowler=` → matchup vs baseline, feeds the tilt meter (calls `compare_matchup_to_baseline`)
+- `/players` → full searchable player list (`label`, `scorecard`, `country`, `search`
+  blob), mirrors Streamlit's `get_player_options`; feeds the front-end dropdown
 Web layer uses `match_format` param → passed to engine's `format` (avoids the
 Python `format` builtin clash). Run locally: `python -m uvicorn api:app --reload`.
+
+**Stage 2 — front-end (IN PROGRESS):**
+- Node.js + npm installed (Windows); PowerShell exec-policy fixed with
+  `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
+- React app scaffolded via Vite (JavaScript) in `frontend/`.
+- Tailwind v4 wired (`@tailwindcss/vite` + `@theme` brand colours in `index.css`).
+- Landing page built in `frontend/src/App.jsx`: green header (Pitch + bright-gold
+  "Nama"), headline "Every matchup, decoded.", tagline, two colour-coded text inputs
+  (batter green / bowler gold), format dropdown, Analyse button (`useState` +
+  placeholder `handleAnalyse`), stat line.
+- NEXT: replace the plain text inputs with a searchable player dropdown (fetches
+  `/players`, filters in-browser, shows "label · country", returns `scorecard`).
