@@ -11,6 +11,7 @@ from typing import Optional
 
 import pandas as pd
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from pitchnama.matchup import (
     analyze_matchup,
@@ -20,6 +21,19 @@ from pitchnama.matchup import (
 from pitchnama.players import load_registry
 
 app = FastAPI(title="PitchNama API")
+
+# Allow the local Vite dev server (the React front-end) to call this API.
+# Browsers block cross-origin requests by default; this tells the API to
+# permit calls coming from the front-end's address during development.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @lru_cache(maxsize=1)
