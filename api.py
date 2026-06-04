@@ -19,6 +19,7 @@ from pitchnama.matchup import (
     compare_matchup_to_baseline,
 )
 from pitchnama.players import load_registry
+from pitchnama.cache import CACHE_PATH
 
 app = FastAPI(title="PitchNama API")
 
@@ -34,6 +35,26 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@lru_cache(maxsize=1)
+def _get_stats() -> dict:
+    """
+    Count the live dataset totals once, then reuse.
+
+    Reads only the two columns it needs (cheap on memory), counted the same
+    way build_cache reports them. The figures reflect whatever the daily
+    auto-update robot last built; cached for the life of the server process,
+    so a redeploy after fresh data picks up the new numbers.
+    """
+    df = pd.read_parquet(
+        CACHE_PATH, columns=['match_id', 'competition'], engine='pyarrow'
+    )
+    return {
+        'deliveries': int(len(df)),
+        'matches': int(df['match_id'].nunique()),
+        'competitions': int(df['competition'].nunique()),
+    }
 
 
 @lru_cache(maxsize=1)
@@ -79,6 +100,12 @@ def _get_player_options() -> list[dict]:
 def home() -> dict:
     """A simple health-check so we can confirm the server is alive."""
     return {"status": "PitchNama API is running"}
+
+
+@app.get("/stats")
+def stats() -> dict:
+    """Live dataset totals for the landing page (deliveries, matches, competitions)."""
+    return _get_stats()
 
 
 @app.get("/players")

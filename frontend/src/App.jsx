@@ -5,6 +5,11 @@ import './App.css'
 // we'll swap this for the live address — noting it, not doing it now.)
 const API_BASE = 'http://localhost:8000'
 
+// 4400000 -> "4.4M" for the headline stat line.
+function formatDeliveries(n) {
+  return (n / 1_000_000).toFixed(1) + 'M'
+}
+
 // A reusable searchable player picker. We use it twice — once for the
 // batter (green), once for the bowler (gold). It shows a text box; as you
 // type, it filters the player list and shows matches; clicking a match
@@ -77,6 +82,8 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
 
+  const [stats, setStats] = useState(null)   // live dataset totals for the stat line
+
   // Fetch the player list once, when the page first loads.
   useEffect(() => {
     async function loadPlayers() {
@@ -92,6 +99,20 @@ function App() {
       }
     }
     loadPlayers()
+  }, [])
+
+  // Fetch the live dataset totals once, for the headline stat line.
+  useEffect(() => {
+    async function loadStats() {
+      try {
+        const res = await fetch(`${API_BASE}/stats`)
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        setStats(await res.json())
+      } catch (err) {
+        // leave stats null; the line below falls back gracefully
+      }
+    }
+    loadStats()
   }, [])
 
   function handleAnalyse() {
@@ -171,7 +192,9 @@ function App() {
         )}
 
         <p className="mt-12 text-sm text-gray-400">
-          4.4M deliveries · 9,366 matches · 7 competitions
+          {stats
+            ? `${formatDeliveries(stats.deliveries)} deliveries · ${stats.matches.toLocaleString()} matches · ${stats.competitions} competitions`
+            : 'Loading dataset…'}
         </p>
       </main>
     </div>
