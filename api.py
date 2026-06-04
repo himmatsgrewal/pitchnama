@@ -6,8 +6,10 @@ front-end (or anything else) can request matchup data by URL.
 The engine itself is untouched — this file only imports and calls it.
 """
 
+from functools import lru_cache
 from typing import Optional
 
+import pandas as pd
 from fastapi import FastAPI
 
 from pitchnama.matchup import (
@@ -15,14 +17,66 @@ from pitchnama.matchup import (
     analyze_batter_overall,
     compare_matchup_to_baseline,
 )
+from pitchnama.players import load_registry
 
 app = FastAPI(title="PitchNama API")
+
+
+@lru_cache(maxsize=1)
+def _get_player_options() -> list[dict]:
+    """
+    Build the searchable player option list once, then reuse.
+
+    Mirrors the Streamlit app's get_player_options: each option shows a
+    display name + country, is findable by display/full/scorecard/country,
+    and returns the scorecard name (what the engine expects).
+    """
+    registry = load_registry()
+
+    grouped = (registry
+               .sort_values('appearances', ascending=False)
+               .groupby('scorecard_name', as_index=False)
+               .agg({
+                   'appearances': 'sum',
+                   'display_name': 'first',
+                   'full_name': 'first',
+                   'country': 'first',
+               }))
+
+    options = []
+    for _, row in grouped.iterrows():
+        scorecard = row['scorecard_name']
+        display = row['display_name'] if pd.notna(row['display_name']) else scorecard
+        full = row['full_name'] if pd.notna(row['full_name']) else ''
+        country = row['country'] if pd.notna(row['country']) else ''
+        search_blob = f"{display} {full} {scorecard} {country}".lower()
+        options.append({
+            'label': display,
+            'scorecard': scorecard,
+            'country': country,
+            'search': search_blob,
+        })
+
+    options.sort(key=lambda x: x['label'].lower())
+    return options
 
 
 @app.get("/")
 def home() -> dict:
     """A simple health-check so we can confirm the server is alive."""
     return {"status": "PitchNama API is running"}
+
+
+@app.get("/players")
+def players() -> list[dict]:
+    """
+    Return the full searchable player list for the front-end.
+
+    Each item: {label, scorecard, country, search}. The front-end shows
+    label + country, searches the 'search' blob, and sends 'scorecard'
+    back to /matchup or /compare.
+    """
+    return _get_player_options()
 
 
 @app.get("/matchup")
@@ -32,12 +86,7 @@ def matchup(
     match_format: Optional[str] = None,
     competition: Optional[str] = None,
 ) -> dict:
-    """
-    Return head-to-head matchup data for a batter vs a bowler.
-
-    Example:
-        /matchup?batter=RG Sharma&bowler=PJ Cummins
-    """
+    """Head-to-head matchup data for a batter vs a bowler."""
     return analyze_matchup(
         batter_name=batter,
         bowler_name=bowler,
@@ -52,14 +101,7 @@ def baseline(
     match_format: Optional[str] = None,
     competition: Optional[str] = None,
 ) -> dict:
-    """
-    Return a batter's own baseline (across all bowlers in scope).
-
-    This is the reference the tilt meter measures a matchup against.
-
-    Example:
-        /baseline?batter=RG Sharma
-    """
+    """A batter's own baseline (across all bowlers in scope)."""
     result = analyze_batter_overall(
         batter_name=batter,
         format=match_format,
@@ -82,14 +124,7 @@ def compare(
     match_format: Optional[str] = None,
     competition: Optional[str] = None,
 ) -> dict:
-    """
-    Compare a matchup to the batter's own baseline.
-
-    This is the data the 'who has the upper hand' tilt meter will use.
-
-    Example:
-        /compare?batter=RG Sharma&bowler=PJ Cummins
-    """
+    """Compare a matchup to the batter's own baseline (feeds the tilt meter)."""
     return compare_matchup_to_baseline(
         batter_name=batter,
         bowler_name=bowler,
