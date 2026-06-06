@@ -8,10 +8,6 @@ function formatDeliveries(n) {
 }
 
 // ---- DRAFT tilt formula (uncalibrated; we tighten the dial in a later pass) ----
-// Two axes vs the batter's own baseline, equally weighted:
-//   scoring   = strike-rate ratio
-//   dismissal = balls-per-dismissal ratio ("never out" => strong batter edge)
-// Raw is smoothed with tanh so small edges stay small and big ones saturate.
 function computeTilt(c) {
   const m = c.overall_matchup
   const b = c.overall_baseline
@@ -21,14 +17,14 @@ function computeTilt(c) {
   const baselineBpd = b.balls / b.wickets
   let dismissal
   if (m.wickets === 0) {
-    dismissal = 100 // never dismissed -> strong batter edge (draft cap)
+    dismissal = 100
   } else {
     const matchupBpd = m.balls / m.wickets
     dismissal = (matchupBpd / baselineBpd - 1) * 100
   }
 
   const raw = (scoring + dismissal) / 2
-  const needle = 100 * Math.tanh(raw / 100) // -100 (gold/bowler) .. +100 (green/batter)
+  const needle = 100 * Math.tanh(raw / 100)
 
   const mag = Math.abs(needle)
   let verdict
@@ -52,9 +48,8 @@ function computeTilt(c) {
   return { needle, verdict, why: `${srPart}, ${outPart}`, smallSample: c.sample_size < 30 }
 }
 
-// The flagship tilt meter. Needle leans toward whoever has the advantage.
 function TiltMeter({ tilt, shown }) {
-  const rotation = -tilt.needle * 0.9 // +needle (batter) => rotate CCW (left/green)
+  const rotation = -tilt.needle * 0.9
 
   return (
     <div className={`mx-auto mt-8 max-w-sm ${tilt.smallSample ? 'opacity-40' : ''}`}>
@@ -151,21 +146,21 @@ function PhasesPanel({ data }) {
   )
 }
 
-function PlayerSelect({ placeholder, accentClass, players, loading, onSelect }) {
-  const [query, setQuery] = useState('')
+// Controlled searchable player picker (display text lives in the parent).
+function PlayerSelect({ placeholder, accentClass, players, loading, value, onChange, onSelect }) {
   const [open, setOpen] = useState(false)
 
-  const q = query.trim().toLowerCase()
+  const q = value.trim().toLowerCase()
   const matches = q ? players.filter((p) => p.search.includes(q)).slice(0, 50) : []
 
   function choose(player) {
-    setQuery(player.label)
+    onChange(player.label)
     setOpen(false)
     onSelect(player.scorecard)
   }
 
   function handleChange(e) {
-    setQuery(e.target.value)
+    onChange(e.target.value)
     setOpen(true)
     onSelect('')
   }
@@ -175,12 +170,12 @@ function PlayerSelect({ placeholder, accentClass, players, loading, onSelect }) 
       <input
         type="text"
         placeholder={loading ? 'Loading players…' : placeholder}
-        value={query}
+        value={value}
         disabled={loading}
         onChange={handleChange}
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 120)}
-        className={`w-full rounded-lg border-2 ${accentClass} px-4 py-3 text-lg focus:outline-none`}
+        className={`w-full rounded-lg border-2 ${accentClass} bg-white px-4 py-3 text-lg focus:outline-none`}
       />
 
       {open && q && (
@@ -206,12 +201,29 @@ function PlayerSelect({ placeholder, accentClass, players, loading, onSelect }) 
   )
 }
 
+const LANDING_BG = {
+  background:
+    'radial-gradient(circle at 12% 18%, rgba(46,204,113,0.22), transparent 45%), ' +
+    'radial-gradient(circle at 88% 22%, rgba(224,169,46,0.18), transparent 45%), ' +
+    'radial-gradient(circle at 50% 105%, rgba(46,204,113,0.12), transparent 55%), ' +
+    '#e9efec',
+}
+
+// A few example matchups for the quick-try chips (resolved by display label).
+const EXAMPLES = [
+  ['Rohit Sharma', 'Pat Cummins'],
+  ['Virat Kohli', 'Kagiso Rabada'],
+  ['David Warner', 'Stuart Broad'],
+]
+
 function App() {
   const [view, setView] = useState('landing')
   const [fading, setFading] = useState(false)
   const [shown, setShown] = useState(false)
   const [tab, setTab] = useState('phases')
 
+  const [batterText, setBatterText] = useState('')
+  const [bowlerText, setBowlerText] = useState('')
   const [batter, setBatter] = useState('')
   const [bowler, setBowler] = useState('')
   const [format, setFormat] = useState('')
@@ -269,6 +281,11 @@ function App() {
     return p ? p.label : scorecard
   }
 
+  function scorecardForLabel(label) {
+    const p = players.find((x) => x.label.toLowerCase() === label.toLowerCase())
+    return p ? p.scorecard : null
+  }
+
   function goTo(nextView) {
     setFading(true)
     setTimeout(() => {
@@ -277,15 +294,15 @@ function App() {
     }, 500)
   }
 
-  async function handleAnalyse() {
-    if (!batter || !bowler) {
+  async function runAnalysis(batterName, bowlerName) {
+    if (!batterName || !bowlerName) {
       setError('Please select both a batter and a bowler from the dropdown.')
       return
     }
     setError('')
     setAnalysing(true)
     try {
-      const params = new URLSearchParams({ batter, bowler })
+      const params = new URLSearchParams({ batter: batterName, bowler: bowlerName })
       if (format) params.set('match_format', format)
       const qs = params.toString()
       const [mRes, cRes] = await Promise.all([
@@ -302,6 +319,24 @@ function App() {
     } finally {
       setAnalysing(false)
     }
+  }
+
+  function handleAnalyse() {
+    runAnalysis(batter, bowler)
+  }
+
+  function tryExample(bLabel, bwLabel) {
+    const bScore = scorecardForLabel(bLabel)
+    const bwScore = scorecardForLabel(bwLabel)
+    if (!bScore || !bwScore) {
+      setError(`Couldn't find ${!bScore ? bLabel : bwLabel} in the player list.`)
+      return
+    }
+    setBatterText(bLabel)
+    setBatter(bScore)
+    setBowlerText(bwLabel)
+    setBowler(bwScore)
+    runAnalysis(bScore, bwScore)
   }
 
   const entrance = `transition-all duration-500 ease-out ${
@@ -326,14 +361,14 @@ function App() {
     <div>
       {/* ---------- LANDING VIEW (light) ---------- */}
       {view === 'landing' && (
-        <>
+        <div className="flex min-h-screen flex-col" style={LANDING_BG}>
           <header className="bg-pitch-green px-6 py-4">
             <h1 className="text-2xl font-bold text-white">
               Pitch<span className="text-pitch-gold-bright">Nama</span>
             </h1>
           </header>
 
-          <main className="px-6 py-16 text-center">
+          <main className="flex flex-1 flex-col items-center justify-center px-6 py-12 text-center">
             <h2 className="text-5xl font-bold text-gray-900">
               Every matchup, decoded.
             </h2>
@@ -347,6 +382,8 @@ function App() {
                 accentClass="border-pitch-green"
                 players={players}
                 loading={loading}
+                value={batterText}
+                onChange={setBatterText}
                 onSelect={setBatter}
               />
               <span className="text-xl font-bold text-gray-400">vs</span>
@@ -355,6 +392,8 @@ function App() {
                 accentClass="border-pitch-gold"
                 players={players}
                 loading={loading}
+                value={bowlerText}
+                onChange={setBowlerText}
                 onSelect={setBowler}
               />
             </div>
@@ -367,7 +406,7 @@ function App() {
               <select
                 value={format}
                 onChange={(e) => setFormat(e.target.value)}
-                className="rounded-lg border-2 border-gray-300 px-4 py-3 text-lg text-gray-700 focus:outline-none"
+                className="rounded-lg border-2 border-gray-300 bg-white px-4 py-3 text-lg text-gray-700 focus:outline-none"
               >
                 <option value="">All formats</option>
                 <option value="T20">T20</option>
@@ -387,8 +426,22 @@ function App() {
               </button>
             </div>
 
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-2">
+              <span className="text-sm text-gray-400">Or try:</span>
+              {EXAMPLES.map(([b, bw]) => (
+                <button
+                  key={`${b}-${bw}`}
+                  type="button"
+                  onClick={() => tryExample(b, bw)}
+                  className="rounded-full border border-gray-300 px-3 py-1 text-sm text-gray-600 transition-colors hover:border-pitch-green hover:text-pitch-green"
+                >
+                  {b} vs {bw}
+                </button>
+              ))}
+            </div>
+
             {error && (
-              <p className="mt-8 text-lg font-medium text-red-500">{error}</p>
+              <p className="mt-6 text-lg font-medium text-red-500">{error}</p>
             )}
 
             <p className="mt-12 text-sm text-gray-400">
@@ -397,7 +450,7 @@ function App() {
                 : 'Loading dataset…'}
             </p>
           </main>
-        </>
+        </div>
       )}
 
       {/* ---------- ANALYSIS VIEW (dark / floodlit) ---------- */}
