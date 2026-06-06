@@ -4,13 +4,11 @@ import './App.css'
 // Where the API lives during development.
 const API_BASE = 'http://localhost:8000'
 
-// 4400000 -> "4.4M" for the headline stat line.
 function formatDeliveries(n) {
   return (n / 1_000_000).toFixed(1) + 'M'
 }
 
-// A dark "floodlit" stat card. Rises and fades in when `shown` flips true;
-// `delay` staggers each card so they arrive one after another.
+// Dark "floodlit" stat card; rises and fades in when `shown` is true.
 function StatCard({ label, value, shown, delay }) {
   return (
     <div
@@ -21,6 +19,60 @@ function StatCard({ label, value, shown, delay }) {
     >
       <div className="text-3xl font-bold text-white">{value}</div>
       <div className="mt-1 text-xs uppercase tracking-wide text-gray-400">{label}</div>
+    </div>
+  )
+}
+
+// One phase-splits table for a single format.
+function PhaseTable({ phases }) {
+  const cols = [
+    ['Balls', (p) => p.balls],
+    ['Runs', (p) => p.runs],
+    ['Avg', (p) => (p.avg != null ? p.avg.toFixed(1) : '—')],
+    ['SR', (p) => (p.sr != null ? p.sr.toFixed(1) : '—')],
+    ['Wkts', (p) => p.wickets],
+    ['Dot %', (p) => (p.dot_pct != null ? p.dot_pct.toFixed(0) : '—')],
+  ]
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-xs uppercase tracking-wide text-gray-400">
+            <th className="py-2 pr-3 text-left font-medium">Phase</th>
+            {cols.map(([h]) => (
+              <th key={h} className="px-3 py-2 text-right font-medium">{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {Object.entries(phases).map(([name, p]) => (
+            <tr key={name} className="border-t border-white/10">
+              <td className="py-2 pr-3 text-left text-gray-200">{name}</td>
+              {cols.map(([h, get]) => (
+                <td key={h} className="px-3 py-2 text-right text-white">{get(p)}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+// The Phases tab: one table per format present in the data.
+function PhasesPanel({ data }) {
+  const formats = Object.entries(data.phase_splits_by_format || {})
+  if (formats.length === 0) {
+    return <p className="text-center text-gray-500">No phase data for this scope.</p>
+  }
+  return (
+    <div className="space-y-8">
+      {formats.map(([fmt, phases]) => (
+        <div key={fmt}>
+          <h4 className="mb-2 text-sm font-bold uppercase tracking-wide text-pitch-green">{fmt}</h4>
+          <PhaseTable phases={phases} />
+        </div>
+      ))}
     </div>
   )
 }
@@ -82,9 +134,10 @@ function PlayerSelect({ placeholder, accentClass, players, loading, onSelect }) 
 }
 
 function App() {
-  const [view, setView] = useState('landing')  // 'landing' or 'analysis'
-  const [fading, setFading] = useState(false)   // black overlay during transitions
-  const [shown, setShown] = useState(false)     // drives the stat entrance animation
+  const [view, setView] = useState('landing')
+  const [fading, setFading] = useState(false)
+  const [shown, setShown] = useState(false)
+  const [tab, setTab] = useState('phases')   // active tab on the analysis screen
 
   const [batter, setBatter] = useState('')
   const [bowler, setBowler] = useState('')
@@ -128,11 +181,10 @@ function App() {
     loadStats()
   }, [])
 
-  // When the analysis screen appears, trigger the stats to animate in.
   useEffect(() => {
     if (view === 'analysis') {
       setShown(false)
-      const t = setTimeout(() => setShown(true), 50)  // next tick → runs the transition
+      const t = setTimeout(() => setShown(true), 50)
       return () => clearTimeout(t)
     }
     setShown(false)
@@ -143,7 +195,6 @@ function App() {
     return p ? p.label : scorecard
   }
 
-  // Fade through black, then swap the view behind it, then fade back out.
   function goTo(nextView) {
     setFading(true)
     setTimeout(() => {
@@ -165,6 +216,7 @@ function App() {
       const res = await fetch(`${API_BASE}/matchup?${params.toString()}`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setData(await res.json())
+      setTab('phases')   // reset to Phases each new analysis
       goTo('analysis')
     } catch (err) {
       setError('Could not fetch the matchup. Is the API running on port 8000?')
@@ -187,6 +239,8 @@ function App() {
         { label: 'Matches', value: data.matches_played },
       ]
     : []
+
+  const tabs = ['charts', 'phases', 'report']
 
   return (
     <div>
@@ -284,31 +338,63 @@ function App() {
 
           <main className="px-6 py-10">
             {data.total_balls > 0 ? (
-              <div className="mx-auto max-w-2xl text-center">
-                <h3 className={`text-3xl font-bold ${entrance}`}>
-                  <span className="text-pitch-green">{labelFor(data.batter)}</span>
-                  <span className="mx-2 text-gray-500">vs</span>
-                  <span className="text-pitch-gold">{labelFor(data.bowler)}</span>
-                </h3>
-                <p
-                  className={`mt-2 text-sm text-gray-400 ${entrance}`}
-                  style={{ transitionDelay: '80ms' }}
-                >
-                  {format || 'All formats'} · {data.matches_played} matches
-                </p>
+              <div className="mx-auto max-w-3xl">
+                <div className="text-center">
+                  <h3 className={`text-3xl font-bold ${entrance}`}>
+                    <span className="text-pitch-green">{labelFor(data.batter)}</span>
+                    <span className="mx-2 text-gray-500">vs</span>
+                    <span className="text-pitch-gold">{labelFor(data.bowler)}</span>
+                  </h3>
+                  <p
+                    className={`mt-2 text-sm text-gray-400 ${entrance}`}
+                    style={{ transitionDelay: '80ms' }}
+                  >
+                    {format || 'All formats'} · {data.matches_played} matches
+                  </p>
 
-                {/* (Tilt meter — the hero — will sit here next, between title and numbers) */}
+                  {/* (Tilt meter — the hero — will sit here next, between title and numbers) */}
 
-                <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  {cards.map((c, i) => (
-                    <StatCard
-                      key={c.label}
-                      label={c.label}
-                      value={c.value}
-                      shown={shown}
-                      delay={150 + i * 70}
-                    />
-                  ))}
+                  <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {cards.map((c, i) => (
+                      <StatCard
+                        key={c.label}
+                        label={c.label}
+                        value={c.value}
+                        shown={shown}
+                        delay={150 + i * 70}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Tabs */}
+                <div className="mt-12">
+                  <div className="flex justify-center gap-1 border-b border-white/10">
+                    {tabs.map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setTab(t)}
+                        className={`px-4 py-2 text-sm font-medium capitalize ${
+                          tab === t
+                            ? 'border-b-2 border-pitch-green text-white'
+                            : 'text-gray-400 hover:text-white'
+                        }`}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="mt-6">
+                    {tab === 'phases' && <PhasesPanel data={data} />}
+                    {tab === 'charts' && (
+                      <p className="text-center text-gray-500">Charts coming next.</p>
+                    )}
+                    {tab === 'report' && (
+                      <p className="text-center text-gray-500">Report coming next.</p>
+                    )}
+                  </div>
                 </div>
               </div>
             ) : (
