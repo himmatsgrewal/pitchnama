@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import './App.css'
 
-// Where the API lives during development. (When we deploy for real,
-// we'll swap this for the live address — noting it, not doing it now.)
+// Where the API lives during development.
 const API_BASE = 'http://localhost:8000'
 
 // 4400000 -> "4.4M" for the headline stat line.
@@ -20,28 +19,24 @@ function StatCard({ label, value }) {
   )
 }
 
-// A reusable searchable player picker. We use it twice — once for the
-// batter (green), once for the bowler (gold). It shows a text box; as you
-// type, it filters the player list and shows matches; clicking a match
-// selects that player and hands its scorecard name up to the parent.
+// A reusable searchable player picker (batter green / bowler gold).
 function PlayerSelect({ placeholder, accentClass, players, loading, onSelect }) {
-  const [query, setQuery] = useState('')   // what's typed in the box
-  const [open, setOpen] = useState(false)  // is the suggestion list showing?
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
 
   const q = query.trim().toLowerCase()
-  // Filter by the 'search' blob the API built, cap at 50 so the list stays snappy.
   const matches = q ? players.filter((p) => p.search.includes(q)).slice(0, 50) : []
 
   function choose(player) {
-    setQuery(player.label)        // show the friendly name in the box
-    setOpen(false)                // close the suggestion list
-    onSelect(player.scorecard)    // send the scorecard name up (the API needs this)
+    setQuery(player.label)
+    setOpen(false)
+    onSelect(player.scorecard)
   }
 
   function handleChange(e) {
     setQuery(e.target.value)
     setOpen(true)
-    onSelect('')  // typing clears any earlier pick until they click a real match
+    onSelect('')
   }
 
   return (
@@ -53,7 +48,6 @@ function PlayerSelect({ placeholder, accentClass, players, loading, onSelect }) 
         disabled={loading}
         onChange={handleChange}
         onFocus={() => setOpen(true)}
-        // small delay so a click on a suggestion registers before the list closes
         onBlur={() => setTimeout(() => setOpen(false), 120)}
         className={`w-full rounded-lg border-2 ${accentClass} px-4 py-3 text-lg focus:outline-none`}
       />
@@ -66,7 +60,6 @@ function PlayerSelect({ placeholder, accentClass, players, loading, onSelect }) 
             matches.map((p) => (
               <li
                 key={p.scorecard}
-                // keep focus on the box so the click below actually registers
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => choose(p)}
                 className="cursor-pointer px-4 py-2 hover:bg-gray-100"
@@ -83,28 +76,29 @@ function PlayerSelect({ placeholder, accentClass, players, loading, onSelect }) 
 }
 
 function App() {
-  const [batter, setBatter] = useState('')   // holds a scorecard name, e.g. "RG Sharma"
-  const [bowler, setBowler] = useState('')   // holds a scorecard name, e.g. "PJ Cummins"
+  const [view, setView] = useState('landing')  // 'landing' or 'analysis'
+
+  const [batter, setBatter] = useState('')
+  const [bowler, setBowler] = useState('')
   const [format, setFormat] = useState('')
 
   const [players, setPlayers] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
 
-  const [stats, setStats] = useState(null)   // live dataset totals for the stat line
+  const [stats, setStats] = useState(null)
 
-  const [data, setData] = useState(null)        // the matchup result from /matchup
+  const [data, setData] = useState(null)
   const [analysing, setAnalysing] = useState(false)
-  const [error, setError] = useState('')        // error from the Analyse action
+  const [error, setError] = useState('')
 
-  // Fetch the player list once, when the page first loads.
+  // Load the player list once.
   useEffect(() => {
     async function loadPlayers() {
       try {
         const res = await fetch(`${API_BASE}/players`)
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        const data = await res.json()
-        setPlayers(data)
+        setPlayers(await res.json())
       } catch (err) {
         setLoadError('Could not load players. Is the API running on port 8000?')
       } finally {
@@ -114,7 +108,7 @@ function App() {
     loadPlayers()
   }, [])
 
-  // Fetch the live dataset totals once, for the headline stat line.
+  // Load the live dataset totals once.
   useEffect(() => {
     async function loadStats() {
       try {
@@ -122,13 +116,12 @@ function App() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         setStats(await res.json())
       } catch (err) {
-        // leave stats null; the line below falls back gracefully
+        // leave null; line falls back gracefully
       }
     }
     loadStats()
   }, [])
 
-  // Turn a scorecard name back into the friendly display name for titles.
   function labelFor(scorecard) {
     const p = players.find((x) => x.scorecard === scorecard)
     return p ? p.label : scorecard
@@ -137,18 +130,17 @@ function App() {
   async function handleAnalyse() {
     if (!batter || !bowler) {
       setError('Please select both a batter and a bowler from the dropdown.')
-      setData(null)
       return
     }
     setError('')
-    setData(null)
     setAnalysing(true)
     try {
       const params = new URLSearchParams({ batter, bowler })
-      if (format) params.set('match_format', format)  // omit when "All formats"
+      if (format) params.set('match_format', format)
       const res = await fetch(`${API_BASE}/matchup?${params.toString()}`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setData(await res.json())
+      setView('analysis')   // switch to the analysis screen on success
     } catch (err) {
       setError('Could not fetch the matchup. Is the API running on port 8000?')
     } finally {
@@ -164,67 +156,87 @@ function App() {
         </h1>
       </header>
 
-      <main className="px-6 py-16 text-center">
-        <h2 className="text-5xl font-bold text-gray-900">
-          Every matchup, decoded.
-        </h2>
-        <p className="mt-4 text-lg text-gray-500">
-          The chronicle of every contest
-        </p>
+      {/* ---------- LANDING VIEW ---------- */}
+      {view === 'landing' && (
+        <main className="px-6 py-16 text-center">
+          <h2 className="text-5xl font-bold text-gray-900">
+            Every matchup, decoded.
+          </h2>
+          <p className="mt-4 text-lg text-gray-500">
+            The chronicle of every contest
+          </p>
 
-        <div className="mt-12 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-          <PlayerSelect
-            placeholder="Batter"
-            accentClass="border-pitch-green"
-            players={players}
-            loading={loading}
-            onSelect={setBatter}
-          />
-          <span className="text-xl font-bold text-gray-400">vs</span>
-          <PlayerSelect
-            placeholder="Bowler"
-            accentClass="border-pitch-gold"
-            players={players}
-            loading={loading}
-            onSelect={setBowler}
-          />
-        </div>
+          <div className="mt-12 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
+            <PlayerSelect
+              placeholder="Batter"
+              accentClass="border-pitch-green"
+              players={players}
+              loading={loading}
+              onSelect={setBatter}
+            />
+            <span className="text-xl font-bold text-gray-400">vs</span>
+            <PlayerSelect
+              placeholder="Bowler"
+              accentClass="border-pitch-gold"
+              players={players}
+              loading={loading}
+              onSelect={setBowler}
+            />
+          </div>
 
-        {loadError && (
-          <p className="mt-4 text-sm font-medium text-red-500">{loadError}</p>
-        )}
+          {loadError && (
+            <p className="mt-4 text-sm font-medium text-red-500">{loadError}</p>
+          )}
 
-        <div className="mt-8 flex justify-center">
-          <select
-            value={format}
-            onChange={(e) => setFormat(e.target.value)}
-            className="rounded-lg border-2 border-gray-300 px-4 py-3 text-lg text-gray-700 focus:outline-none"
-          >
-            <option value="">All formats</option>
-            <option value="T20">T20</option>
-            <option value="ODI">ODI</option>
-            <option value="Test">Test</option>
-          </select>
-        </div>
+          <div className="mt-8 flex justify-center">
+            <select
+              value={format}
+              onChange={(e) => setFormat(e.target.value)}
+              className="rounded-lg border-2 border-gray-300 px-4 py-3 text-lg text-gray-700 focus:outline-none"
+            >
+              <option value="">All formats</option>
+              <option value="T20">T20</option>
+              <option value="ODI">ODI</option>
+              <option value="Test">Test</option>
+            </select>
+          </div>
 
-        <div className="mt-8 flex justify-center">
+          <div className="mt-8 flex justify-center">
+            <button
+              type="button"
+              onClick={handleAnalyse}
+              disabled={analysing}
+              className="rounded-lg bg-pitch-green px-12 py-4 text-xl font-bold text-white hover:bg-green-600 disabled:opacity-60"
+            >
+              {analysing ? 'Analysing…' : 'Analyse'}
+            </button>
+          </div>
+
+          {error && (
+            <p className="mt-8 text-lg font-medium text-red-500">{error}</p>
+          )}
+
+          <p className="mt-12 text-sm text-gray-400">
+            {stats
+              ? `${formatDeliveries(stats.deliveries)} deliveries · ${stats.matches.toLocaleString()} matches · ${stats.competitions} competitions`
+              : 'Loading dataset…'}
+          </p>
+        </main>
+      )}
+
+      {/* ---------- ANALYSIS VIEW ---------- */}
+      {view === 'analysis' && data && (
+        <main className="px-6 py-12">
           <button
             type="button"
-            onClick={handleAnalyse}
-            disabled={analysing}
-            className="rounded-lg bg-pitch-green px-12 py-4 text-xl font-bold text-white hover:bg-green-600 disabled:opacity-60"
+            onClick={() => setView('landing')}
+            className="text-sm font-medium text-gray-500 hover:text-gray-800"
           >
-            {analysing ? 'Analysing…' : 'Analyse'}
+            ← Back
           </button>
-        </div>
 
-        {error && (
-          <p className="mt-8 text-lg font-medium text-red-500">{error}</p>
-        )}
-
-        {data && !analysing && (
-          data.total_balls > 0 ? (
-            <div className="mx-auto mt-10 max-w-2xl">
+          {data.total_balls > 0 ? (
+            <div className="mx-auto mt-6 max-w-2xl text-center">
               <h3 className="text-2xl font-bold">
                 <span className="text-pitch-green">{labelFor(data.batter)}</span>
                 <span className="mx-2 text-gray-400">vs</span>
@@ -243,18 +255,12 @@ function App() {
               </div>
             </div>
           ) : (
-            <p className="mt-8 text-lg font-medium text-gray-500">
+            <p className="mt-6 text-center text-lg font-medium text-gray-500">
               No recorded deliveries between these two in this scope.
             </p>
-          )
-        )}
-
-        <p className="mt-12 text-sm text-gray-400">
-          {stats
-            ? `${formatDeliveries(stats.deliveries)} deliveries · ${stats.matches.toLocaleString()} matches · ${stats.competitions} competitions`
-            : 'Loading dataset…'}
-        </p>
-      </main>
+          )}
+        </main>
+      )}
     </div>
   )
 }
