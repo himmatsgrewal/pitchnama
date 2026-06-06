@@ -9,11 +9,17 @@ function formatDeliveries(n) {
   return (n / 1_000_000).toFixed(1) + 'M'
 }
 
-// A small presentational card for one headline number.
-function StatCard({ label, value }) {
+// A dark "floodlit" stat card. Rises and fades in when `shown` flips true;
+// `delay` staggers each card so they arrive one after another.
+function StatCard({ label, value, shown, delay }) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-white px-4 py-3 text-center">
-      <div className="text-2xl font-bold text-gray-900">{value}</div>
+    <div
+      className={`rounded-lg bg-surface px-4 py-4 text-center transition-all duration-500 ease-out ${
+        shown ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0'
+      }`}
+      style={{ transitionDelay: `${delay}ms` }}
+    >
+      <div className="text-3xl font-bold text-white">{value}</div>
       <div className="mt-1 text-xs uppercase tracking-wide text-gray-400">{label}</div>
     </div>
   )
@@ -77,6 +83,8 @@ function PlayerSelect({ placeholder, accentClass, players, loading, onSelect }) 
 
 function App() {
   const [view, setView] = useState('landing')  // 'landing' or 'analysis'
+  const [fading, setFading] = useState(false)   // black overlay during transitions
+  const [shown, setShown] = useState(false)     // drives the stat entrance animation
 
   const [batter, setBatter] = useState('')
   const [bowler, setBowler] = useState('')
@@ -92,7 +100,6 @@ function App() {
   const [analysing, setAnalysing] = useState(false)
   const [error, setError] = useState('')
 
-  // Load the player list once.
   useEffect(() => {
     async function loadPlayers() {
       try {
@@ -108,7 +115,6 @@ function App() {
     loadPlayers()
   }, [])
 
-  // Load the live dataset totals once.
   useEffect(() => {
     async function loadStats() {
       try {
@@ -116,15 +122,34 @@ function App() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         setStats(await res.json())
       } catch (err) {
-        // leave null; line falls back gracefully
+        // leave null
       }
     }
     loadStats()
   }, [])
 
+  // When the analysis screen appears, trigger the stats to animate in.
+  useEffect(() => {
+    if (view === 'analysis') {
+      setShown(false)
+      const t = setTimeout(() => setShown(true), 50)  // next tick → runs the transition
+      return () => clearTimeout(t)
+    }
+    setShown(false)
+  }, [view])
+
   function labelFor(scorecard) {
     const p = players.find((x) => x.scorecard === scorecard)
     return p ? p.label : scorecard
+  }
+
+  // Fade through black, then swap the view behind it, then fade back out.
+  function goTo(nextView) {
+    setFading(true)
+    setTimeout(() => {
+      setView(nextView)
+      setFading(false)
+    }, 500)
   }
 
   async function handleAnalyse() {
@@ -140,7 +165,7 @@ function App() {
       const res = await fetch(`${API_BASE}/matchup?${params.toString()}`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setData(await res.json())
-      setView('analysis')   // switch to the analysis screen on success
+      goTo('analysis')
     } catch (err) {
       setError('Could not fetch the matchup. Is the API running on port 8000?')
     } finally {
@@ -148,119 +173,159 @@ function App() {
     }
   }
 
+  const entrance = `transition-all duration-500 ease-out ${
+    shown ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0'
+  }`
+
+  const cards = data
+    ? [
+        { label: 'Balls', value: data.total_balls },
+        { label: 'Runs', value: data.total_runs },
+        { label: 'Average', value: data.avg != null ? data.avg.toFixed(2) : '—' },
+        { label: 'Strike rate', value: data.sr.toFixed(2) },
+        { label: 'Dismissals', value: data.dismissals },
+        { label: 'Matches', value: data.matches_played },
+      ]
+    : []
+
   return (
     <div>
-      <header className="bg-pitch-green px-6 py-4">
-        <h1 className="text-2xl font-bold text-white">
-          Pitch<span className="text-pitch-gold-bright">Nama</span>
-        </h1>
-      </header>
-
-      {/* ---------- LANDING VIEW ---------- */}
+      {/* ---------- LANDING VIEW (light) ---------- */}
       {view === 'landing' && (
-        <main className="px-6 py-16 text-center">
-          <h2 className="text-5xl font-bold text-gray-900">
-            Every matchup, decoded.
-          </h2>
-          <p className="mt-4 text-lg text-gray-500">
-            The chronicle of every contest
-          </p>
+        <>
+          <header className="bg-pitch-green px-6 py-4">
+            <h1 className="text-2xl font-bold text-white">
+              Pitch<span className="text-pitch-gold-bright">Nama</span>
+            </h1>
+          </header>
 
-          <div className="mt-12 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-            <PlayerSelect
-              placeholder="Batter"
-              accentClass="border-pitch-green"
-              players={players}
-              loading={loading}
-              onSelect={setBatter}
-            />
-            <span className="text-xl font-bold text-gray-400">vs</span>
-            <PlayerSelect
-              placeholder="Bowler"
-              accentClass="border-pitch-gold"
-              players={players}
-              loading={loading}
-              onSelect={setBowler}
-            />
-          </div>
+          <main className="px-6 py-16 text-center">
+            <h2 className="text-5xl font-bold text-gray-900">
+              Every matchup, decoded.
+            </h2>
+            <p className="mt-4 text-lg text-gray-500">
+              The chronicle of every contest
+            </p>
 
-          {loadError && (
-            <p className="mt-4 text-sm font-medium text-red-500">{loadError}</p>
-          )}
+            <div className="mt-12 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
+              <PlayerSelect
+                placeholder="Batter"
+                accentClass="border-pitch-green"
+                players={players}
+                loading={loading}
+                onSelect={setBatter}
+              />
+              <span className="text-xl font-bold text-gray-400">vs</span>
+              <PlayerSelect
+                placeholder="Bowler"
+                accentClass="border-pitch-gold"
+                players={players}
+                loading={loading}
+                onSelect={setBowler}
+              />
+            </div>
 
-          <div className="mt-8 flex justify-center">
-            <select
-              value={format}
-              onChange={(e) => setFormat(e.target.value)}
-              className="rounded-lg border-2 border-gray-300 px-4 py-3 text-lg text-gray-700 focus:outline-none"
-            >
-              <option value="">All formats</option>
-              <option value="T20">T20</option>
-              <option value="ODI">ODI</option>
-              <option value="Test">Test</option>
-            </select>
-          </div>
+            {loadError && (
+              <p className="mt-4 text-sm font-medium text-red-500">{loadError}</p>
+            )}
 
-          <div className="mt-8 flex justify-center">
+            <div className="mt-8 flex justify-center">
+              <select
+                value={format}
+                onChange={(e) => setFormat(e.target.value)}
+                className="rounded-lg border-2 border-gray-300 px-4 py-3 text-lg text-gray-700 focus:outline-none"
+              >
+                <option value="">All formats</option>
+                <option value="T20">T20</option>
+                <option value="ODI">ODI</option>
+                <option value="Test">Test</option>
+              </select>
+            </div>
+
+            <div className="mt-8 flex justify-center">
+              <button
+                type="button"
+                onClick={handleAnalyse}
+                disabled={analysing}
+                className="rounded-lg bg-pitch-green px-12 py-4 text-xl font-bold text-white hover:bg-green-600 disabled:opacity-60"
+              >
+                {analysing ? 'Analysing…' : 'Analyse'}
+              </button>
+            </div>
+
+            {error && (
+              <p className="mt-8 text-lg font-medium text-red-500">{error}</p>
+            )}
+
+            <p className="mt-12 text-sm text-gray-400">
+              {stats
+                ? `${formatDeliveries(stats.deliveries)} deliveries · ${stats.matches.toLocaleString()} matches · ${stats.competitions} competitions`
+                : 'Loading dataset…'}
+            </p>
+          </main>
+        </>
+      )}
+
+      {/* ---------- ANALYSIS VIEW (dark / floodlit) ---------- */}
+      {view === 'analysis' && data && (
+        <div className="min-h-screen bg-floodlit text-white">
+          <div className="flex items-center justify-between px-6 py-4">
             <button
               type="button"
-              onClick={handleAnalyse}
-              disabled={analysing}
-              className="rounded-lg bg-pitch-green px-12 py-4 text-xl font-bold text-white hover:bg-green-600 disabled:opacity-60"
+              onClick={() => goTo('landing')}
+              className="text-sm font-medium text-gray-400 hover:text-white"
             >
-              {analysing ? 'Analysing…' : 'Analyse'}
+              ← Back
             </button>
+            <span className="text-xl font-bold text-white">
+              Pitch<span className="text-pitch-gold">Nama</span>
+            </span>
           </div>
 
-          {error && (
-            <p className="mt-8 text-lg font-medium text-red-500">{error}</p>
-          )}
+          <main className="px-6 py-10">
+            {data.total_balls > 0 ? (
+              <div className="mx-auto max-w-2xl text-center">
+                <h3 className={`text-3xl font-bold ${entrance}`}>
+                  <span className="text-pitch-green">{labelFor(data.batter)}</span>
+                  <span className="mx-2 text-gray-500">vs</span>
+                  <span className="text-pitch-gold">{labelFor(data.bowler)}</span>
+                </h3>
+                <p
+                  className={`mt-2 text-sm text-gray-400 ${entrance}`}
+                  style={{ transitionDelay: '80ms' }}
+                >
+                  {format || 'All formats'} · {data.matches_played} matches
+                </p>
 
-          <p className="mt-12 text-sm text-gray-400">
-            {stats
-              ? `${formatDeliveries(stats.deliveries)} deliveries · ${stats.matches.toLocaleString()} matches · ${stats.competitions} competitions`
-              : 'Loading dataset…'}
-          </p>
-        </main>
-      )}
+                {/* (Tilt meter — the hero — will sit here next, between title and numbers) */}
 
-      {/* ---------- ANALYSIS VIEW ---------- */}
-      {view === 'analysis' && data && (
-        <main className="px-6 py-12">
-          <button
-            type="button"
-            onClick={() => setView('landing')}
-            className="text-sm font-medium text-gray-500 hover:text-gray-800"
-          >
-            ← Back
-          </button>
-
-          {data.total_balls > 0 ? (
-            <div className="mx-auto mt-6 max-w-2xl text-center">
-              <h3 className="text-2xl font-bold">
-                <span className="text-pitch-green">{labelFor(data.batter)}</span>
-                <span className="mx-2 text-gray-400">vs</span>
-                <span className="text-pitch-gold">{labelFor(data.bowler)}</span>
-              </h3>
-              <p className="mt-1 text-sm text-gray-400">
-                {format || 'All formats'} · {data.matches_played} matches
-              </p>
-              <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                <StatCard label="Balls" value={data.total_balls} />
-                <StatCard label="Runs" value={data.total_runs} />
-                <StatCard label="Average" value={data.avg != null ? data.avg.toFixed(2) : '—'} />
-                <StatCard label="Strike rate" value={data.sr.toFixed(2)} />
-                <StatCard label="Dismissals" value={data.dismissals} />
-                <StatCard label="Matches" value={data.matches_played} />
+                <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {cards.map((c, i) => (
+                    <StatCard
+                      key={c.label}
+                      label={c.label}
+                      value={c.value}
+                      shown={shown}
+                      delay={150 + i * 70}
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
-          ) : (
-            <p className="mt-6 text-center text-lg font-medium text-gray-500">
-              No recorded deliveries between these two in this scope.
-            </p>
-          )}
-        </main>
+            ) : (
+              <p className="mx-auto max-w-2xl text-center text-lg font-medium text-gray-400">
+                No recorded deliveries between these two in this scope.
+              </p>
+            )}
+          </main>
+        </div>
       )}
+
+      {/* Black overlay used for the floodlit fade between views. */}
+      <div
+        className={`pointer-events-none fixed inset-0 z-50 bg-floodlit transition-opacity duration-500 ${
+          fading ? 'opacity-100' : 'opacity-0'
+        }`}
+      />
     </div>
   )
 }
