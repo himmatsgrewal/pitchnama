@@ -10,6 +10,16 @@ function formatDeliveries(n) {
   return (n / 1_000_000).toFixed(1) + 'M'
 }
 
+// A small presentational card for one headline number.
+function StatCard({ label, value }) {
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white px-4 py-3 text-center">
+      <div className="text-2xl font-bold text-gray-900">{value}</div>
+      <div className="mt-1 text-xs uppercase tracking-wide text-gray-400">{label}</div>
+    </div>
+  )
+}
+
 // A reusable searchable player picker. We use it twice — once for the
 // batter (green), once for the bowler (gold). It shows a text box; as you
 // type, it filters the player list and shows matches; clicking a match
@@ -76,13 +86,16 @@ function App() {
   const [batter, setBatter] = useState('')   // holds a scorecard name, e.g. "RG Sharma"
   const [bowler, setBowler] = useState('')   // holds a scorecard name, e.g. "PJ Cummins"
   const [format, setFormat] = useState('')
-  const [result, setResult] = useState('')
 
   const [players, setPlayers] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
 
   const [stats, setStats] = useState(null)   // live dataset totals for the stat line
+
+  const [data, setData] = useState(null)        // the matchup result from /matchup
+  const [analysing, setAnalysing] = useState(false)
+  const [error, setError] = useState('')        // error from the Analyse action
 
   // Fetch the player list once, when the page first loads.
   useEffect(() => {
@@ -115,13 +128,32 @@ function App() {
     loadStats()
   }, [])
 
-  function handleAnalyse() {
+  // Turn a scorecard name back into the friendly display name for titles.
+  function labelFor(scorecard) {
+    const p = players.find((x) => x.scorecard === scorecard)
+    return p ? p.label : scorecard
+  }
+
+  async function handleAnalyse() {
     if (!batter || !bowler) {
-      setResult('Please select both a batter and a bowler from the dropdown.')
+      setError('Please select both a batter and a bowler from the dropdown.')
+      setData(null)
       return
     }
-    const scope = format ? format : 'all formats'
-    setResult(`Analysing ${batter} vs ${bowler} (${scope})...`)
+    setError('')
+    setData(null)
+    setAnalysing(true)
+    try {
+      const params = new URLSearchParams({ batter, bowler })
+      if (format) params.set('match_format', format)  // omit when "All formats"
+      const res = await fetch(`${API_BASE}/matchup?${params.toString()}`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      setData(await res.json())
+    } catch (err) {
+      setError('Could not fetch the matchup. Is the API running on port 8000?')
+    } finally {
+      setAnalysing(false)
+    }
   }
 
   return (
@@ -179,16 +211,42 @@ function App() {
           <button
             type="button"
             onClick={handleAnalyse}
-            className="rounded-lg bg-pitch-green px-12 py-4 text-xl font-bold text-white hover:bg-green-600"
+            disabled={analysing}
+            className="rounded-lg bg-pitch-green px-12 py-4 text-xl font-bold text-white hover:bg-green-600 disabled:opacity-60"
           >
-            Analyse
+            {analysing ? 'Analysing…' : 'Analyse'}
           </button>
         </div>
 
-        {result && (
-          <p className="mt-8 text-lg font-medium text-gray-700">
-            {result}
-          </p>
+        {error && (
+          <p className="mt-8 text-lg font-medium text-red-500">{error}</p>
+        )}
+
+        {data && !analysing && (
+          data.total_balls > 0 ? (
+            <div className="mx-auto mt-10 max-w-2xl">
+              <h3 className="text-2xl font-bold">
+                <span className="text-pitch-green">{labelFor(data.batter)}</span>
+                <span className="mx-2 text-gray-400">vs</span>
+                <span className="text-pitch-gold">{labelFor(data.bowler)}</span>
+              </h3>
+              <p className="mt-1 text-sm text-gray-400">
+                {format || 'All formats'} · {data.matches_played} matches
+              </p>
+              <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <StatCard label="Balls" value={data.total_balls} />
+                <StatCard label="Runs" value={data.total_runs} />
+                <StatCard label="Average" value={data.avg != null ? data.avg.toFixed(2) : '—'} />
+                <StatCard label="Strike rate" value={data.sr.toFixed(2)} />
+                <StatCard label="Dismissals" value={data.dismissals} />
+                <StatCard label="Matches" value={data.matches_played} />
+              </div>
+            </div>
+          ) : (
+            <p className="mt-8 text-lg font-medium text-gray-500">
+              No recorded deliveries between these two in this scope.
+            </p>
+          )
         )}
 
         <p className="mt-12 text-sm text-gray-400">
