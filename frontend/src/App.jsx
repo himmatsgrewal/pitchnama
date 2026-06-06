@@ -1,14 +1,90 @@
 import { useState, useEffect } from 'react'
 import './App.css'
 
-// Where the API lives during development.
 const API_BASE = 'http://localhost:8000'
 
 function formatDeliveries(n) {
   return (n / 1_000_000).toFixed(1) + 'M'
 }
 
-// Dark "floodlit" stat card; rises and fades in when `shown` is true.
+// ---- DRAFT tilt formula (uncalibrated; we tighten the dial in a later pass) ----
+// Two axes vs the batter's own baseline, equally weighted:
+//   scoring   = strike-rate ratio
+//   dismissal = balls-per-dismissal ratio ("never out" => strong batter edge)
+// Raw is smoothed with tanh so small edges stay small and big ones saturate.
+function computeTilt(c) {
+  const m = c.overall_matchup
+  const b = c.overall_baseline
+
+  const scoring = (m.sr / b.sr - 1) * 100
+
+  const baselineBpd = b.balls / b.wickets
+  let dismissal
+  if (m.wickets === 0) {
+    dismissal = 100 // never dismissed -> strong batter edge (draft cap)
+  } else {
+    const matchupBpd = m.balls / m.wickets
+    dismissal = (matchupBpd / baselineBpd - 1) * 100
+  }
+
+  const raw = (scoring + dismissal) / 2
+  const needle = 100 * Math.tanh(raw / 100) // -100 (gold/bowler) .. +100 (green/batter)
+
+  const mag = Math.abs(needle)
+  let verdict
+  if (mag < 8) {
+    verdict = 'Even contest'
+  } else {
+    const side = needle > 0 ? 'Batter edge' : 'Bowler edge'
+    const strength = mag < 25 ? 'slight' : mag < 55 ? 'clear' : 'strong'
+    verdict = `${side} · ${strength}`
+  }
+
+  const srPct = Math.round((m.sr / b.sr - 1) * 100)
+  const srPart = srPct >= 0 ? `strike rate up ${srPct}%` : `strike rate down ${Math.abs(srPct)}%`
+  let outPart
+  if (m.wickets === 0) {
+    outPart = `not dismissed in ${m.balls} balls`
+  } else {
+    outPart = `dismissed every ${Math.round(m.balls / m.wickets)} balls vs his usual ${Math.round(baselineBpd)}`
+  }
+
+  return { needle, verdict, why: `${srPart}, ${outPart}`, smallSample: c.sample_size < 30 }
+}
+
+// The flagship tilt meter. Needle leans toward whoever has the advantage.
+function TiltMeter({ tilt, shown }) {
+  const rotation = -tilt.needle * 0.9 // +needle (batter) => rotate CCW (left/green)
+
+  return (
+    <div className={`mx-auto mt-8 max-w-sm ${tilt.smallSample ? 'opacity-40' : ''}`}>
+      <svg viewBox="0 0 300 175" className="w-full">
+        <path d="M 30 150 A 120 120 0 0 1 150 30" fill="none" stroke="#2ecc71" strokeWidth="16" strokeLinecap="round" />
+        <path d="M 150 30 A 120 120 0 0 1 270 150" fill="none" stroke="#e0a92e" strokeWidth="16" strokeLinecap="round" />
+        <g
+          style={{
+            transformOrigin: '150px 150px',
+            transformBox: 'view-box',
+            transform: `rotate(${shown ? rotation : 0}deg)`,
+            transition: 'transform 1100ms cubic-bezier(0.34, 1.55, 0.5, 1)',
+          }}
+        >
+          <line x1="150" y1="150" x2="150" y2="48" stroke="white" strokeWidth="5" strokeLinecap="round" />
+        </g>
+        <circle cx="150" cy="150" r="9" fill="white" />
+        <text x="30" y="171" textAnchor="middle" fontSize="13" fontWeight="bold" fill="#2ecc71">Batter</text>
+        <text x="270" y="171" textAnchor="middle" fontSize="13" fontWeight="bold" fill="#e0a92e">Bowler</text>
+      </svg>
+
+      <p className="mt-2 text-center text-lg font-bold text-white">{tilt.verdict}</p>
+      <p className="mt-1 text-center text-sm text-gray-400">{tilt.why}</p>
+      {tilt.smallSample && (
+        <p className="mt-1 text-center text-xs uppercase tracking-wide text-gray-500">small sample</p>
+      )}
+    </div>
+  )
+}
+
 function StatCard({ label, value, shown, delay }) {
   return (
     <div
@@ -23,7 +99,6 @@ function StatCard({ label, value, shown, delay }) {
   )
 }
 
-// One phase-splits table for a single format.
 function PhaseTable({ phases }) {
   const cols = [
     ['Balls', (p) => p.balls],
@@ -59,7 +134,6 @@ function PhaseTable({ phases }) {
   )
 }
 
-// The Phases tab: one table per format present in the data.
 function PhasesPanel({ data }) {
   const formats = Object.entries(data.phase_splits_by_format || {})
   if (formats.length === 0) {
@@ -77,7 +151,6 @@ function PhasesPanel({ data }) {
   )
 }
 
-// A reusable searchable player picker (batter green / bowler gold).
 function PlayerSelect({ placeholder, accentClass, players, loading, onSelect }) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
@@ -137,7 +210,7 @@ function App() {
   const [view, setView] = useState('landing')
   const [fading, setFading] = useState(false)
   const [shown, setShown] = useState(false)
-  const [tab, setTab] = useState('phases')   // active tab on the analysis screen
+  const [tab, setTab] = useState('phases')
 
   const [batter, setBatter] = useState('')
   const [bowler, setBowler] = useState('')
@@ -150,6 +223,7 @@ function App() {
   const [stats, setStats] = useState(null)
 
   const [data, setData] = useState(null)
+  const [compare, setCompare] = useState(null)
   const [analysing, setAnalysing] = useState(false)
   const [error, setError] = useState('')
 
@@ -213,10 +287,15 @@ function App() {
     try {
       const params = new URLSearchParams({ batter, bowler })
       if (format) params.set('match_format', format)
-      const res = await fetch(`${API_BASE}/matchup?${params.toString()}`)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      setData(await res.json())
-      setTab('phases')   // reset to Phases each new analysis
+      const qs = params.toString()
+      const [mRes, cRes] = await Promise.all([
+        fetch(`${API_BASE}/matchup?${qs}`),
+        fetch(`${API_BASE}/compare?${qs}`),
+      ])
+      if (!mRes.ok || !cRes.ok) throw new Error('HTTP error')
+      setData(await mRes.json())
+      setCompare(await cRes.json())
+      setTab('phases')
       goTo('analysis')
     } catch (err) {
       setError('Could not fetch the matchup. Is the API running on port 8000?')
@@ -240,6 +319,7 @@ function App() {
       ]
     : []
 
+  const tilt = compare && data && data.total_balls > 0 ? computeTilt(compare) : null
   const tabs = ['charts', 'phases', 'report']
 
   return (
@@ -352,7 +432,7 @@ function App() {
                     {format || 'All formats'} · {data.matches_played} matches
                   </p>
 
-                  {/* (Tilt meter — the hero — will sit here next, between title and numbers) */}
+                  {tilt && <TiltMeter tilt={tilt} shown={shown} />}
 
                   <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3">
                     {cards.map((c, i) => (
@@ -367,7 +447,6 @@ function App() {
                   </div>
                 </div>
 
-                {/* Tabs */}
                 <div className="mt-12">
                   <div className="flex justify-center gap-1 border-b border-white/10">
                     {tabs.map((t) => (
