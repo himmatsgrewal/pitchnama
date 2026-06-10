@@ -22,14 +22,26 @@ DATA_ROOT = "data"
 
 # Browser-like headers. Cricsheet rejects bare bot requests (HTTP 415), so we
 # identify as a normal browser to fetch the public data they intend to share.
+# Their bot filter periodically tightens — when it does, we widen this set to
+# match what a real Chrome request carries.
 BROWSER_HEADERS = {
     'User-Agent': (
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
         'AppleWebKit/537.36 (KHTML, like Gecko) '
-        'Chrome/124.0.0.0 Safari/537.36'
+        'Chrome/126.0.0.0 Safari/537.36'
     ),
-    'Accept': 'application/zip,application/octet-stream,*/*',
+    'Accept': (
+        'text/html,application/xhtml+xml,application/xml;q=0.9,'
+        'image/avif,image/webp,application/zip,application/octet-stream,*/*;q=0.8'
+    ),
     'Accept-Language': 'en-US,en;q=0.9',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Referer': 'https://cricsheet.org/downloads/',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'same-origin',
+    'Sec-Fetch-User': '?1',
+    'Upgrade-Insecure-Requests': '1',
 }
 
 # Cricsheet datasets we use, indexed by short code.
