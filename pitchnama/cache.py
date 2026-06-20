@@ -61,7 +61,9 @@ def _is_bowler_wicket(delivery: dict) -> bool:
 
 def _parse_dataset(code: str, verbose: bool = True) -> list[dict]:
     """Parse a single Cricsheet dataset folder into a list of ball dicts."""
-    _, subfolder, label = CRICSHEET_DATASETS[code]
+    config = CRICSHEET_DATASETS[code]
+    subfolder = config['subfolder']
+    label = config['label']
     folder = os.path.join(DATA_ROOT, subfolder)
 
     if not os.path.exists(folder):

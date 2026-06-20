@@ -94,7 +94,9 @@ def build_registry(output_path: str = REGISTRY_PATH, verbose: bool = True) -> pd
         print("Building player registry...")
 
     for code in CRICSHEET_DATASETS:
-        _, subfolder, label = CRICSHEET_DATASETS[code]
+        config = CRICSHEET_DATASETS[code]
+        subfolder = config['subfolder']
+        label = config['label']
         folder = os.path.join(DATA_ROOT, subfolder)
         if not os.path.exists(folder):
             if verbose:
