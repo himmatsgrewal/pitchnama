@@ -20,6 +20,7 @@ from pitchnama.matchup import (
 )
 from pitchnama.players import load_registry
 from pitchnama.cache import CACHE_PATH
+from pitchnama.scout_report import generate_report
 
 app = FastAPI(title="PitchNama API")
 
@@ -172,3 +173,27 @@ def compare(
         format=match_format,
         competition=competition,
     )
+
+
+@app.get("/report")
+def report(
+    batter: str,
+    bowler: str,
+    match_format: Optional[str] = None,
+    competition: Optional[str] = None,
+) -> dict:
+    """
+    Bilingual scout report for a matchup. Returns the English and Hindi
+    narratives generated from the same compare_matchup_to_baseline data
+    the tilt meter uses.
+    """
+    data = compare_matchup_to_baseline(
+        batter_name=batter,
+        bowler_name=bowler,
+        format=match_format,
+        competition=competition,
+    )
+    return {
+        "english": generate_report(data, language='en'),
+        "hindi": generate_report(data, language='hi'),
+    }
