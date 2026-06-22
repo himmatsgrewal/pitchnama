@@ -146,7 +146,25 @@ function PhasesPanel({ data }) {
   )
 }
 
-// Controlled searchable player picker (display text lives in the parent).
+// The Report tab: bilingual EN + HI broadcast scout, stacked.
+function ReportPanel({ report }) {
+  if (!report) {
+    return <p className="text-center text-gray-500">No report available.</p>
+  }
+  return (
+    <div className="space-y-8 text-left">
+      <div>
+        <h4 className="mb-2 text-sm font-bold uppercase tracking-wide text-pitch-green">English</h4>
+        <p className="leading-relaxed text-gray-200">{report.english}</p>
+      </div>
+      <div>
+        <h4 className="mb-2 text-sm font-bold uppercase tracking-wide text-pitch-green">हिन्दी</h4>
+        <p className="leading-relaxed text-gray-200">{report.hindi}</p>
+      </div>
+    </div>
+  )
+}
+
 function PlayerSelect({ placeholder, accentClass, players, loading, value, onChange, onSelect }) {
   const [open, setOpen] = useState(false)
 
@@ -209,7 +227,6 @@ const LANDING_BG = {
     '#e9efec',
 }
 
-// A few example matchups for the quick-try chips (resolved by display label).
 const EXAMPLES = [
   ['Rohit Sharma', 'Pat Cummins'],
   ['Virat Kohli', 'Kagiso Rabada'],
@@ -236,6 +253,7 @@ function App() {
 
   const [data, setData] = useState(null)
   const [compare, setCompare] = useState(null)
+  const [report, setReport] = useState(null)
   const [analysing, setAnalysing] = useState(false)
   const [error, setError] = useState('')
 
@@ -305,13 +323,15 @@ function App() {
       const params = new URLSearchParams({ batter: batterName, bowler: bowlerName })
       if (format) params.set('match_format', format)
       const qs = params.toString()
-      const [mRes, cRes] = await Promise.all([
+      const [mRes, cRes, rRes] = await Promise.all([
         fetch(`${API_BASE}/matchup?${qs}`),
         fetch(`${API_BASE}/compare?${qs}`),
+        fetch(`${API_BASE}/report?${qs}`),
       ])
-      if (!mRes.ok || !cRes.ok) throw new Error('HTTP error')
+      if (!mRes.ok || !cRes.ok || !rRes.ok) throw new Error('HTTP error')
       setData(await mRes.json())
       setCompare(await cRes.json())
+      setReport(await rRes.json())
       setTab('phases')
       goTo('analysis')
     } catch (err) {
@@ -523,9 +543,7 @@ function App() {
                     {tab === 'charts' && (
                       <p className="text-center text-gray-500">Charts coming next.</p>
                     )}
-                    {tab === 'report' && (
-                      <p className="text-center text-gray-500">Report coming next.</p>
-                    )}
+                    {tab === 'report' && <ReportPanel report={report} />}
                   </div>
                 </div>
               </div>
