@@ -177,7 +177,40 @@ function ChartTooltip({ active, payload, label }) {
   )
 }
 
-// The Charts tab: matchup vs baseline + per-competition split.
+// Tiny chart section heading + caption — reusable.
+function ChartHeader({ title, subtitle }) {
+  return (
+    <div className="mb-3">
+      <h4 className="text-sm font-bold uppercase tracking-wide text-pitch-green">{title}</h4>
+      {subtitle && <p className="mt-1 text-xs text-gray-500">{subtitle}</p>}
+    </div>
+  )
+}
+
+// Big number + label pair, used inside the Pressure card. Green = batter-friendly,
+// gold = bowler-friendly. delta is a signed % (positive = matchup higher than baseline).
+function PressureMetric({ label, baseline, matchup, delta, batterFriendlyHigh }) {
+  // Decide which colour wins (i.e. which way is the matchup leaning vs baseline).
+  const batterDoingBetter = batterFriendlyHigh ? delta > 0 : delta < 0
+  const arrow = delta > 0 ? '▲' : delta < 0 ? '▼' : '·'
+  const arrowColor = batterDoingBetter ? '#2ecc71' : '#e0a92e'
+  return (
+    <div className="rounded-lg bg-surface p-4 text-center">
+      <p className="text-xs uppercase tracking-wide text-gray-400">{label}</p>
+      <p className="mt-1 text-2xl font-bold text-white">
+        {matchup.toFixed(0)}<span className="text-sm text-gray-500">%</span>
+      </p>
+      <p className="mt-1 text-xs text-gray-500">
+        usual {baseline.toFixed(0)}%
+      </p>
+      <p className="mt-2 text-sm font-medium" style={{ color: arrowColor }}>
+        {arrow} {Math.abs(delta).toFixed(0)}%
+      </p>
+    </div>
+  )
+}
+
+// The Charts tab: four sections building the matchup story.
 function ChartsPanel({ data, compare }) {
   if (!compare || !data) {
     return <p className="text-center text-gray-500">No chart data available.</p>
@@ -186,7 +219,7 @@ function ChartsPanel({ data, compare }) {
   const m = compare.overall_matchup
   const b = compare.overall_baseline
 
-  // Chart 1: career baseline vs this matchup, for SR (always) and Avg (only if defined).
+  // --- 1. Career baseline vs this matchup ---
   const headlineData = [
     { metric: 'Strike rate', baseline: b.sr, matchup: m.sr },
     ...(m.avg != null && b.avg != null
@@ -194,7 +227,32 @@ function ChartsPanel({ data, compare }) {
       : []),
   ]
 
-  // Chart 2: per-competition strike rate (gold) with baseline SR (green dashed) for reference.
+  // --- 2. Phase strike rate (per format, all formats present in matchup) ---
+  // For each format we have phase splits for, build a small bar chart.
+  const phaseChartsData = Object.entries(compare.phases_by_format || {}).map(
+    ([fmt, phases]) => ({
+      fmt,
+      rows: Object.entries(phases)
+        .filter(([, p]) => p.matchup_balls >= 5 && p.matchup_sr != null && p.baseline_sr != null)
+        .map(([phase, p]) => ({
+          phase,
+          baseline: p.baseline_sr,
+          matchup: p.matchup_sr,
+          balls: p.matchup_balls,
+        })),
+    })
+  ).filter((g) => g.rows.length > 0)
+
+  // --- 3. Pressure (dot % and boundary %) ---
+  // Higher dot% = bowler winning. Higher boundary% = batter winning.
+  const hasPressure = m.dot_pct != null && b.dot_pct != null
+    && m.boundary_pct != null && b.boundary_pct != null
+  const pressure = hasPressure ? {
+    dotDelta: m.dot_pct - b.dot_pct,
+    boundaryDelta: m.boundary_pct - b.boundary_pct,
+  } : null
+
+  // --- 4. Strike rate by competition ---
   const competitionData = Object.entries(data.competition_breakdown || {})
     .filter(([, s]) => s.balls > 0 && s.sr != null)
     .map(([code, s]) => ({
@@ -205,14 +263,12 @@ function ChartsPanel({ data, compare }) {
 
   return (
     <div className="space-y-12">
-      {/* Headline: baseline vs matchup */}
+      {/* 1 — Headline */}
       <div>
-        <h4 className="mb-1 text-sm font-bold uppercase tracking-wide text-pitch-green">
-          Career baseline vs this matchup
-        </h4>
-        <p className="mb-3 text-xs text-gray-500">
-          Green = his usual numbers. Gold = under this bowler's pressure.
-        </p>
+        <ChartHeader
+          title="Career baseline vs this matchup"
+          subtitle="Green = his usual numbers. Gold = under this bowler's pressure."
+        />
         <ResponsiveContainer width="100%" height={280}>
           <BarChart data={headlineData} margin={{ top: 20, right: 10, left: -10, bottom: 0 }}>
             <CartesianGrid stroke="#1f2937" strokeDasharray="3 3" vertical={false} />
@@ -230,16 +286,66 @@ function ChartsPanel({ data, compare }) {
         </ResponsiveContainer>
       </div>
 
-      {/* Per-competition SR */}
+      {/* 2 — Phase strike rate per format */}
+      {phaseChartsData.length > 0 && (
+        <div>
+          <ChartHeader
+            title="Phase strike rate"
+            subtitle="Where in the innings does the matchup tip? Each chart compares his usual phase SR (green) to the matchup (gold)."
+          />
+          <div className="space-y-6">
+            {phaseChartsData.map(({ fmt, rows }) => (
+              <div key={fmt}>
+                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-300">{fmt}</p>
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={rows} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                    <CartesianGrid stroke="#1f2937" strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="phase" stroke="#9ca3af" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                    <YAxis stroke="#9ca3af" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
+                    <Bar dataKey="baseline" name="His usual" fill="#2ecc71" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="matchup" name="Vs this bowler" fill="#e0a92e" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 3 — Pressure */}
+      {pressure && (
+        <div>
+          <ChartHeader
+            title="How the bowler does it"
+            subtitle="Dot balls and boundaries against this bowler vs his usual rate. Gold = bowler ahead, green = batter ahead."
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <PressureMetric
+              label="Dot balls"
+              baseline={b.dot_pct}
+              matchup={m.dot_pct}
+              delta={pressure.dotDelta}
+              batterFriendlyHigh={false}
+            />
+            <PressureMetric
+              label="Boundaries"
+              baseline={b.boundary_pct}
+              matchup={m.boundary_pct}
+              delta={pressure.boundaryDelta}
+              batterFriendlyHigh={true}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* 4 — Per-competition SR */}
       {competitionData.length >= 2 && (
         <div>
-          <h4 className="mb-1 text-sm font-bold uppercase tracking-wide text-pitch-green">
-            Strike rate by competition
-          </h4>
-          <p className="mb-3 text-xs text-gray-500">
-            Each bar = strike rate against this bowler in that competition.
-            Dashed green line = his overall career strike rate ({b.sr.toFixed(0)}) for reference.
-          </p>
+          <ChartHeader
+            title="Strike rate by competition"
+            subtitle={`Each bar = strike rate against this bowler in that competition. Dashed green line = his overall career strike rate (${b.sr.toFixed(0)}) for reference.`}
+          />
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={competitionData} margin={{ top: 20, right: 10, left: -10, bottom: 0 }}>
               <CartesianGrid stroke="#1f2937" strokeDasharray="3 3" vertical={false} />
