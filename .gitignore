@@ -11,8 +11,7 @@ data/bbl_json/
 data/psl_json/
 data/cpl_json/
 *.zip
-*.json
-!pitchnama/player_display_names.json
+
 # Jupyter notebook checkpoints (auto-generated backups)
 .ipynb_checkpoints/
 
@@ -21,15 +20,20 @@ __pycache__/
 *.pyc
 *.pyo
 
-# Virtual environments (we may set one up later)
+# Virtual environments
 venv/
 env/
 .venv/
 
+# Node / front-end build artifacts (NOT package.json or package-lock.json — those MUST be tracked)
+node_modules/
+frontend/dist/
+frontend/dist-ssr/
+
 # OS-generated files
-.DS_Store          # macOS
-Thumbs.db          # Windows
-desktop.ini        # Windows
+.DS_Store
+Thumbs.db
+desktop.ini
 
 # IDE / editor files
 .vscode/

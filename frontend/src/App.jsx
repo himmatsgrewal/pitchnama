@@ -1,10 +1,19 @@
 import { useState, useEffect } from 'react'
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine,
+  Legend, ResponsiveContainer,
+} from 'recharts'
 import './App.css'
 
 const API_BASE = 'http://localhost:8000'
 
 function formatDeliveries(n) {
   return (n / 1_000_000).toFixed(1) + 'M'
+}
+
+const COMPETITION_LABELS = {
+  ipl: 'IPL', t20i: 'T20I', odi: 'ODI', test: 'Test',
+  bbl: 'BBL', psl: 'PSL', cpl: 'CPL',
 }
 
 // ---- DRAFT tilt formula (uncalibrated; we tighten the dial in a later pass) ----
@@ -146,21 +155,108 @@ function PhasesPanel({ data }) {
   )
 }
 
-// The Report tab: bilingual EN + HI broadcast scout, stacked.
-function ReportPanel({ report }) {
-  if (!report) {
-    return <p className="text-center text-gray-500">No report available.</p>
-  }
+// Dark broadcast-styled tooltip for Recharts.
+function ChartTooltip({ active, payload, label }) {
+  if (!active || !payload || !payload.length) return null
   return (
-    <div className="space-y-8 text-left">
+    <div className="rounded-lg border border-white/10 bg-surface px-3 py-2 text-sm shadow-lg">
+      <p className="font-bold text-white">{label}</p>
+      {payload.map((entry) => (
+        <p key={entry.dataKey} className="mt-0.5 text-gray-300">
+          <span style={{ color: entry.color }}>●</span>{' '}
+          <span className="text-gray-400">{entry.name}:</span>{' '}
+          <span className="font-medium text-white">
+            {entry.value != null ? entry.value.toFixed(1) : '—'}
+          </span>
+          {entry.payload?.balls != null && entry.dataKey === 'sr' && (
+            <span className="text-gray-500"> ({entry.payload.balls} balls)</span>
+          )}
+        </p>
+      ))}
+    </div>
+  )
+}
+
+// The Charts tab: matchup vs baseline + per-competition split.
+function ChartsPanel({ data, compare }) {
+  if (!compare || !data) {
+    return <p className="text-center text-gray-500">No chart data available.</p>
+  }
+
+  const m = compare.overall_matchup
+  const b = compare.overall_baseline
+
+  // Chart 1: career baseline vs this matchup, for SR (always) and Avg (only if defined).
+  const headlineData = [
+    { metric: 'Strike rate', baseline: b.sr, matchup: m.sr },
+    ...(m.avg != null && b.avg != null
+      ? [{ metric: 'Average', baseline: b.avg, matchup: m.avg }]
+      : []),
+  ]
+
+  // Chart 2: per-competition strike rate (gold) with baseline SR (green dashed) for reference.
+  const competitionData = Object.entries(data.competition_breakdown || {})
+    .filter(([, s]) => s.balls > 0 && s.sr != null)
+    .map(([code, s]) => ({
+      competition: COMPETITION_LABELS[code] || code.toUpperCase(),
+      sr: s.sr,
+      balls: s.balls,
+    }))
+
+  return (
+    <div className="space-y-12">
+      {/* Headline: baseline vs matchup */}
       <div>
-        <h4 className="mb-2 text-sm font-bold uppercase tracking-wide text-pitch-green">English</h4>
-        <p className="leading-relaxed text-gray-200">{report.english}</p>
+        <h4 className="mb-1 text-sm font-bold uppercase tracking-wide text-pitch-green">
+          Career baseline vs this matchup
+        </h4>
+        <p className="mb-3 text-xs text-gray-500">
+          Green = his usual numbers. Gold = under this bowler's pressure.
+        </p>
+        <ResponsiveContainer width="100%" height={280}>
+          <BarChart data={headlineData} margin={{ top: 20, right: 10, left: -10, bottom: 0 }}>
+            <CartesianGrid stroke="#1f2937" strokeDasharray="3 3" vertical={false} />
+            <XAxis dataKey="metric" stroke="#9ca3af" tick={{ fontSize: 13 }} axisLine={false} tickLine={false} />
+            <YAxis stroke="#9ca3af" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+            <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
+            <Legend
+              wrapperStyle={{ paddingTop: 12, fontSize: 13 }}
+              iconType="circle"
+              formatter={(v) => <span className="text-gray-300">{v}</span>}
+            />
+            <Bar dataKey="baseline" name="Career baseline" fill="#2ecc71" radius={[6, 6, 0, 0]} />
+            <Bar dataKey="matchup" name="Vs this bowler" fill="#e0a92e" radius={[6, 6, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
       </div>
-      <div>
-        <h4 className="mb-2 text-sm font-bold uppercase tracking-wide text-pitch-green">हिन्दी</h4>
-        <p className="leading-relaxed text-gray-200">{report.hindi}</p>
-      </div>
+
+      {/* Per-competition SR */}
+      {competitionData.length >= 2 && (
+        <div>
+          <h4 className="mb-1 text-sm font-bold uppercase tracking-wide text-pitch-green">
+            Strike rate by competition
+          </h4>
+          <p className="mb-3 text-xs text-gray-500">
+            Each bar = strike rate against this bowler in that competition.
+            Dashed green line = his overall career strike rate ({b.sr.toFixed(0)}) for reference.
+          </p>
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart data={competitionData} margin={{ top: 20, right: 10, left: -10, bottom: 0 }}>
+              <CartesianGrid stroke="#1f2937" strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="competition" stroke="#9ca3af" tick={{ fontSize: 13 }} axisLine={false} tickLine={false} />
+              <YAxis stroke="#9ca3af" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+              <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
+              <ReferenceLine
+                y={b.sr}
+                stroke="#2ecc71"
+                strokeDasharray="4 4"
+                strokeWidth={1.5}
+              />
+              <Bar dataKey="sr" name="Strike rate" fill="#e0a92e" radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </div>
   )
 }
@@ -215,6 +311,24 @@ function PlayerSelect({ placeholder, accentClass, players, loading, value, onCha
           )}
         </ul>
       )}
+    </div>
+  )
+}
+
+function ReportPanel({ report }) {
+  if (!report) {
+    return <p className="text-center text-gray-500">No report available.</p>
+  }
+  return (
+    <div className="space-y-8 text-left">
+      <div>
+        <h4 className="mb-2 text-sm font-bold uppercase tracking-wide text-pitch-green">English</h4>
+        <p className="leading-relaxed text-gray-200">{report.english}</p>
+      </div>
+      <div>
+        <h4 className="mb-2 text-sm font-bold uppercase tracking-wide text-pitch-green">हिन्दी</h4>
+        <p className="leading-relaxed text-gray-200">{report.hindi}</p>
+      </div>
     </div>
   )
 }
@@ -540,9 +654,7 @@ function App() {
 
                   <div className="mt-6">
                     {tab === 'phases' && <PhasesPanel data={data} />}
-                    {tab === 'charts' && (
-                      <p className="text-center text-gray-500">Charts coming next.</p>
-                    )}
+                    {tab === 'charts' && <ChartsPanel data={data} compare={compare} />}
                     {tab === 'report' && <ReportPanel report={report} />}
                   </div>
                 </div>
