@@ -70,16 +70,44 @@ brand-owned art, not a stock/real photo.
 
 - Exciting / appealing / FUN for total newcomers
 - Smooth light→dark colour transition on "Analyse" ✅
-- LIVE / ANIMATED graphs in bright colours
-- Charts: matchup-vs-baseline · phase breakdowns (per format) ✅ · per-format comparison
+- LIVE / ANIMATED graphs in bright colours ✅
+- Charts: matchup-vs-baseline ✅ · phase breakdowns (per format) ✅ · per-competition comparison ✅ · pressure cards (dot/boundary) ✅
 - **FLAGSHIP: "Who has the upper hand"** gauge / dominance visual ✅ (built with DRAFT formula; calibration pending)
-- Bilingual scout report (English + Hindi) — already built in the engine; not yet wired into the new front-end
-- Buttons including "Generate shareable card"
+- Bilingual scout report (English + Hindi) ✅ — broadcast pundit voice via `/report`
+- Buttons including "Generate shareable card" — DESIGNED, not yet built
 - Shareable cards = branded DATA-GRAPHICS (no photos) for Instagram (@pitchnama reserved)
 - **Logo (P+N monogram) — END-OF-PROJECT must-do:** a real original graphic logo,
   a P + N monogram. Original art only, no photos. Designed LATE, once the built site
   gives visual context to design against; lives in the header (replacing the current
   text "PitchNama" wordmark). Font pass happens at the same time.
+
+---
+
+## 3a. Post-Launch Vision (the long game)
+
+**The end state, by ~2 years post-launch:** PitchNama is no longer just a matchup
+tool. The landing page presents three top-level sections:
+
+- **Men's cricket** — what we're launching with (matchups, stats, scout reports)
+- **Women's cricket** — same depth of analytics, applied to women's data
+  (Cricsheet has WT20Is, WODIs, WBBL, WPL). Underserved by current analytics tools.
+- **Venues** — per-ground analysis: batting-friendly vs bowling-friendly,
+  phase behaviour, historical patterns. Data already in the cache (we capture
+  `venue` and `city` per delivery).
+
+These are NOT part of v1. They are the roadmap *after* v1 ships and is stable.
+Launch announcements should describe PitchNama as matchup analytics — clean, focused,
+complete — with Women's and Venues listed as "coming soon" on a public roadmap.
+Underpromise, overdeliver.
+
+**Architectural implication for v1:** when we deploy at the $5 hosting moment, the
+URL structure and navigation should accommodate adding top-level sections later
+without redesigning everything. Small consideration now, big payoff later.
+
+**Long-game positioning:** "I built PitchNama and have been actively developing it
+for X months" is a far stronger CV story than a one-shot project. The point isn't
+just to ship v1 — it's to ship v1, then keep shipping. Two years of public,
+sustained development is what sets a data-science portfolio apart.
 
 ---
 
@@ -170,10 +198,15 @@ The dark / floodlit screen, top to bottom:
 3. **Tilt meter (HERO — always visible)** — needle green↔gold + verdict + why
 4. **Headline numbers (always visible)** — 6 stat cards: Balls · Runs · Avg · SR · Dismissals · Matches
 5. **Tabs (for depth):** Charts · Phases · Report
-   - **Phases:** BUILT — one table per format present in the data (T20, ODI, Test)
+   - **Phases:** ✅ BUILT — one table per format present in the data (T20, ODI, Test)
      with columns Balls/Runs/Avg/SR/Wkts/Dot%
-   - **Charts:** placeholder "coming next"
-   - **Report:** placeholder "coming next"
+   - **Charts:** ✅ BUILT — four sections: Career baseline vs this matchup, Phase
+     strike rate (per format), Pressure cards (dot %, boundary %), Strike rate by
+     competition (with career baseline reference line). Uses Recharts. All green/gold.
+   - **Report:** ✅ BUILT — bilingual EN+Hindi broadcast pundit narratives via
+     `/report`. Named edge in human terms; translates numbers into meaning; surfaces
+     one meaningful phase finding (min 10 balls, 25% divergence); calls out format
+     splits when avg differs ≥2× across competitions; small-sample caveat below 30 balls.
 6. **Action button:** Generate Card (not yet built)
 
 ### 4c. Shareable Card (DESIGNED, not yet built)
@@ -207,12 +240,12 @@ part of this (by choice — it's part of the goal).
 | Stage | What | Notes |
 |---|---|---|
 | 0 | Design decisions | ✅ DONE |
-| 1 | FastAPI wrapper around engine | ✅ DONE — `api.py` at root; endpoints `/matchup`, `/baseline`, `/compare`, `/players`, `/stats` returning JSON; CORS enabled for the Vite dev origin |
-| 2 | Front-end fundamentals + build the site | ◀ IN PROGRESS (heavy progress made). Landing complete (richer light background, searchable player dropdowns, format selector, Analyse, quick-try chips, live stat line). Analysis screen complete (dark floodlit, floodlit fade transition, animated stat entrance, tilt meter with draft formula, tab bar). Phases tab complete (per-format tables). NEXT: Report tab (needs `/report` endpoint), Charts tab, Generate Card, tilt-meter calibration, tilt-meter glow polish. |
+| 1 | FastAPI wrapper around engine | ✅ DONE — `api.py` at root; endpoints `/matchup`, `/baseline`, `/compare`, `/players`, `/stats`, `/report` returning JSON; CORS enabled for the Vite dev origin |
+| 2 | Front-end fundamentals + build the site | ◀ IN PROGRESS. Landing complete · Analysis screen complete · Tilt meter (draft formula) · Phases tab · Report tab (bilingual EN+Hindi broadcast voice via `/report`) · Charts tab (4 sections: baseline-vs-matchup, phase SR per format, pressure cards, per-competition SR). NEXT: Generate Card button, tilt-meter calibration, tilt-meter glow polish. |
 | 3 | (folded into Stage 2) | — |
 | 4 | Deploy + clean hosting + Instagram prep | The ~$5/mo hosting moment |
 
-**Estimate:** ~3–4 weeks from here at 2–3 hrs/day to reach the hosting moment.
+**Estimate:** ~2–3 weeks from here at 2–3 hrs/day to reach the hosting moment.
 
 **Two-server dev setup:**
 - FastAPI: `python -m uvicorn api:app --reload` (port 8000, from ROOT)
@@ -246,8 +279,9 @@ part of this (by choice — it's part of the goal).
 
 - Start each session with `git pull` (data mirror refreshes via release; robot pushes
   parquets nightly).
-- Spoon-fed steps: COMPLETE files to paste, confirm before big changes. BATCH layers
-  (one-tiny-step-at-a-time is too repetitive); lead with do-this-now, explain in summary.
+- Spoon-fed steps: lead with do-this-now, explain in summary. Targeted edits with
+  exact location by default; full files only when asked or when the change is too
+  tangled. Saves usage time.
 - Direct, honest collaboration; push back on bad ideas; MCQ-style choices when deciding.
 - Verify cricket facts against data, not memory. Verify numbers before committing.
 - Lowercase/snake_case Python, type hints, imperative commits, DRY. Delete scratch files before commit.
@@ -290,20 +324,24 @@ included). To make the robot independent of that:
 verified, committed):
 - `/matchup?batter=&bowler=` → head-to-head
 - `/baseline?batter=` → batter's own baseline
-- `/compare?batter=&bowler=` → matchup vs baseline (feeds the tilt meter)
+- `/compare?batter=&bowler=` → matchup vs baseline (feeds the tilt meter and charts)
 - `/players` → full searchable player list (label, scorecard, country, search blob)
 - `/stats` → live dataset totals (deliveries, matches, competitions)
+- `/report` → bilingual EN+Hindi scout narrative (broadcast pundit voice)
+
 Web layer uses `match_format` param → passed to engine's `format` (avoids the
 Python `format` builtin clash). CORS enabled for `localhost:5173`.
 Run locally: `python -m uvicorn api:app --reload`.
 
-**Stage 2 — front-end (IN PROGRESS, heavy progress):**
+**Stage 2 — front-end (IN PROGRESS, near complete):**
 
 Environment:
 - Node.js + npm installed (Windows); PowerShell exec-policy set with
   `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
 - React app scaffolded via Vite (JavaScript) in `frontend/`.
 - Tailwind v4 wired (`@tailwindcss/vite` + `@theme` brand colours in `index.css`).
+- Recharts installed for the Charts tab.
+- gh CLI installed for the weekly mirror refresh + future deployment.
 
 Landing page (`App.jsx`):
 - Green header bar (Pitch + bright-gold "Nama") on richer off-white background
@@ -330,18 +368,23 @@ Analysis screen (`App.jsx`):
   (1100ms cubic-bezier overshoot), verdict line ("Bowler edge · slight"), why line,
   small-sample dimming. Uses DRAFT formula (see §4a-i).
 - 6 stat cards staggered fade-in: Balls, Runs, Avg, SR, Dismissals, Matches.
-- Tab bar: Charts · Phases · Report.
+- Tab bar: Charts · Phases · Report. All three tabs FULLY BUILT.
 - **Phases tab:** per-format tables (T20/ODI/Test) of phase splits (Balls, Runs,
   Avg, SR, Wkts, Dot%).
-- **Charts tab:** placeholder "coming next".
-- **Report tab:** placeholder "coming next" (needs `/report` endpoint).
+- **Charts tab:** four sections in narrative order — (1) Career baseline vs this
+  matchup (grouped bar, green vs gold, SR and Avg); (2) Phase strike rate per format
+  (one mini chart per format, green=usual / gold=matchup); (3) Pressure cards (dot %
+  and boundary %, with green/gold arrows showing direction); (4) Strike rate by
+  competition (gold bars with dashed green career-SR reference line). All with
+  branded dark tooltip and entrance animation.
+- **Report tab:** stacked English (left aligned, green label) + Hindi (left aligned,
+  green label) broadcast pundit narratives from `/report`.
 
 NOT yet built:
-- `/report` endpoint + Report tab content
-- Charts tab content (matchup-vs-baseline live chart)
-- Generate Card button + shareable card
+- Generate Card button + shareable card (square 1:1 + portrait 4:5)
 - Tilt-meter formula calibration (still using draft)
 - Tilt-meter glow polish on the dark screen
 - README pass
+- Node.js workflow bump (standing duty)
 - Logo + font pass (end-of-project)
 - Real ~$5/mo hosting + pitchnama.com pointing to the new site
