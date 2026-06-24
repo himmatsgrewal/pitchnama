@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine,
   Legend, ResponsiveContainer,
 } from 'recharts'
+import { toPng } from 'html-to-image'
 import './App.css'
 
 const API_BASE = 'http://localhost:8000'
@@ -155,7 +156,6 @@ function PhasesPanel({ data }) {
   )
 }
 
-// Dark broadcast-styled tooltip for Recharts.
 function ChartTooltip({ active, payload, label }) {
   if (!active || !payload || !payload.length) return null
   return (
@@ -177,7 +177,6 @@ function ChartTooltip({ active, payload, label }) {
   )
 }
 
-// Tiny chart section heading + caption — reusable.
 function ChartHeader({ title, subtitle }) {
   return (
     <div className="mb-3">
@@ -187,10 +186,7 @@ function ChartHeader({ title, subtitle }) {
   )
 }
 
-// Big number + label pair, used inside the Pressure card. Green = batter-friendly,
-// gold = bowler-friendly. delta is a signed % (positive = matchup higher than baseline).
 function PressureMetric({ label, baseline, matchup, delta, batterFriendlyHigh }) {
-  // Decide which colour wins (i.e. which way is the matchup leaning vs baseline).
   const batterDoingBetter = batterFriendlyHigh ? delta > 0 : delta < 0
   const arrow = delta > 0 ? '▲' : delta < 0 ? '▼' : '·'
   const arrowColor = batterDoingBetter ? '#2ecc71' : '#e0a92e'
@@ -210,7 +206,112 @@ function PressureMetric({ label, baseline, matchup, delta, batterFriendlyHigh })
   )
 }
 
-// The Charts tab: four sections building the matchup story.
+// The shareable card — rendered in the viewport but hidden via `visibility`
+// (everything still paints, the browser just doesn't show it).
+// Briefly shown during capture so html-to-image gets accurate styles.
+function ShareCard({ data, compare, tilt, cardRef, scopeLabel, batterLabel, bowlerLabel, visible }) {
+  if (!data || !compare || !tilt) return null
+
+  const rotation = -tilt.needle * 0.9
+
+  return (
+    <div
+      ref={cardRef}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '1080px',
+        height: '1080px',
+        pointerEvents: 'none',
+        zIndex: 9999,
+        visibility: visible ? 'visible' : 'hidden',
+        background:
+          'radial-gradient(circle at 15% 15%, rgba(46,204,113,0.18), transparent 50%), ' +
+          'radial-gradient(circle at 85% 20%, rgba(224,169,46,0.16), transparent 50%), ' +
+          'radial-gradient(circle at 50% 110%, rgba(46,204,113,0.10), transparent 60%), ' +
+          '#0d1117',
+        color: '#ffffff',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        padding: '60px 70px',
+        boxSizing: 'border-box',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      <div style={{ fontSize: '32px', fontWeight: 700, letterSpacing: '0.5px' }}>
+        Pitch<span style={{ color: '#e0a92e' }}>Nama</span>
+      </div>
+
+      <div style={{ marginTop: '60px', textAlign: 'center' }}>
+        <div style={{ fontSize: '64px', fontWeight: 800, lineHeight: 1.1 }}>
+          <span style={{ color: '#2ecc71' }}>{batterLabel}</span>
+          <span style={{ color: '#6b7280', margin: '0 18px', fontWeight: 600 }}>vs</span>
+          <span style={{ color: '#e0a92e' }}>{bowlerLabel}</span>
+        </div>
+        <div style={{ marginTop: '14px', fontSize: '22px', color: '#9ca3af' }}>
+          {scopeLabel} · {data.matches_played} matches · {data.total_balls} balls
+        </div>
+      </div>
+
+      <div style={{ marginTop: '48px', display: 'flex', justifyContent: 'center' }}>
+        <svg viewBox="0 0 300 175" width="520" height="304">
+          <path d="M 30 150 A 120 120 0 0 1 150 30" fill="none" stroke="#2ecc71" strokeWidth="16" strokeLinecap="round" />
+          <path d="M 150 30 A 120 120 0 0 1 270 150" fill="none" stroke="#e0a92e" strokeWidth="16" strokeLinecap="round" />
+          <g style={{ transformOrigin: '150px 150px', transformBox: 'view-box', transform: `rotate(${rotation}deg)` }}>
+            <line x1="150" y1="150" x2="150" y2="48" stroke="white" strokeWidth="5" strokeLinecap="round" />
+          </g>
+          <circle cx="150" cy="150" r="9" fill="white" />
+          <text x="30" y="171" textAnchor="middle" fontSize="13" fontWeight="bold" fill="#2ecc71">Batter</text>
+          <text x="270" y="171" textAnchor="middle" fontSize="13" fontWeight="bold" fill="#e0a92e">Bowler</text>
+        </svg>
+      </div>
+
+      <div style={{ marginTop: '8px', textAlign: 'center' }}>
+        <div style={{ fontSize: '36px', fontWeight: 700, color: '#ffffff' }}>{tilt.verdict}</div>
+        <div style={{ marginTop: '8px', fontSize: '20px', color: '#9ca3af' }}>{tilt.why}</div>
+      </div>
+
+      <div
+        style={{
+          marginTop: '40px',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: '14px',
+        }}
+      >
+        {[
+          { label: 'Balls', value: data.total_balls },
+          { label: 'Runs', value: data.total_runs },
+          { label: 'Average', value: data.avg != null ? data.avg.toFixed(1) : '—' },
+          { label: 'Strike rate', value: data.sr.toFixed(1) },
+          { label: 'Dismissals', value: data.dismissals },
+          { label: 'Matches', value: data.matches_played },
+        ].map((c) => (
+          <div
+            key={c.label}
+            style={{
+              background: '#141b24',
+              borderRadius: '12px',
+              padding: '16px 12px',
+              textAlign: 'center',
+            }}
+          >
+            <div style={{ fontSize: '38px', fontWeight: 800, color: '#ffffff' }}>{c.value}</div>
+            <div style={{ marginTop: '4px', fontSize: '14px', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '1px' }}>
+              {c.label}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ marginTop: 'auto', textAlign: 'center', fontSize: '18px', color: '#9ca3af' }}>
+        pitchnama.com · the chronicle of every contest
+      </div>
+    </div>
+  )
+}
+
 function ChartsPanel({ data, compare }) {
   if (!compare || !data) {
     return <p className="text-center text-gray-500">No chart data available.</p>
@@ -219,7 +320,6 @@ function ChartsPanel({ data, compare }) {
   const m = compare.overall_matchup
   const b = compare.overall_baseline
 
-  // --- 1. Career baseline vs this matchup ---
   const headlineData = [
     { metric: 'Strike rate', baseline: b.sr, matchup: m.sr },
     ...(m.avg != null && b.avg != null
@@ -227,8 +327,6 @@ function ChartsPanel({ data, compare }) {
       : []),
   ]
 
-  // --- 2. Phase strike rate (per format, all formats present in matchup) ---
-  // For each format we have phase splits for, build a small bar chart.
   const phaseChartsData = Object.entries(compare.phases_by_format || {}).map(
     ([fmt, phases]) => ({
       fmt,
@@ -243,8 +341,6 @@ function ChartsPanel({ data, compare }) {
     })
   ).filter((g) => g.rows.length > 0)
 
-  // --- 3. Pressure (dot % and boundary %) ---
-  // Higher dot% = bowler winning. Higher boundary% = batter winning.
   const hasPressure = m.dot_pct != null && b.dot_pct != null
     && m.boundary_pct != null && b.boundary_pct != null
   const pressure = hasPressure ? {
@@ -252,7 +348,6 @@ function ChartsPanel({ data, compare }) {
     boundaryDelta: m.boundary_pct - b.boundary_pct,
   } : null
 
-  // --- 4. Strike rate by competition ---
   const competitionData = Object.entries(data.competition_breakdown || {})
     .filter(([, s]) => s.balls > 0 && s.sr != null)
     .map(([code, s]) => ({
@@ -263,7 +358,6 @@ function ChartsPanel({ data, compare }) {
 
   return (
     <div className="space-y-12">
-      {/* 1 — Headline */}
       <div>
         <ChartHeader
           title="Career baseline vs this matchup"
@@ -286,7 +380,6 @@ function ChartsPanel({ data, compare }) {
         </ResponsiveContainer>
       </div>
 
-      {/* 2 — Phase strike rate per format */}
       {phaseChartsData.length > 0 && (
         <div>
           <ChartHeader
@@ -313,7 +406,6 @@ function ChartsPanel({ data, compare }) {
         </div>
       )}
 
-      {/* 3 — Pressure */}
       {pressure && (
         <div>
           <ChartHeader
@@ -339,7 +431,6 @@ function ChartsPanel({ data, compare }) {
         </div>
       )}
 
-      {/* 4 — Per-competition SR */}
       {competitionData.length >= 2 && (
         <div>
           <ChartHeader
@@ -477,6 +568,10 @@ function App() {
   const [analysing, setAnalysing] = useState(false)
   const [error, setError] = useState('')
 
+  const cardRef = useRef(null)
+  const [cardVisible, setCardVisible] = useState(false)
+  const [generatingCard, setGeneratingCard] = useState(false)
+
   useEffect(() => {
     async function loadPlayers() {
       try {
@@ -579,6 +674,33 @@ function App() {
     runAnalysis(bScore, bwScore)
   }
 
+  async function handleGenerateCard() {
+    setGeneratingCard(true)
+    setCardVisible(true)
+    // Wait two animation frames so the card actually paints before capture.
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+    try {
+      if (!cardRef.current) throw new Error('Card not ready')
+      const png = await toPng(cardRef.current, {
+        cacheBust: true,
+        pixelRatio: 1,
+        width: 1080,
+        height: 1080,
+      })
+      const link = document.createElement('a')
+      const safeBatter = (data?.batter || 'batter').replace(/\s+/g, '_')
+      const safeBowler = (data?.bowler || 'bowler').replace(/\s+/g, '_')
+      link.download = `pitchnama-${safeBatter}-vs-${safeBowler}.png`
+      link.href = png
+      link.click()
+    } catch (err) {
+      console.error('Card generation failed:', err)
+    } finally {
+      setCardVisible(false)
+      setGeneratingCard(false)
+    }
+  }
+
   const entrance = `transition-all duration-500 ease-out ${
     shown ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0'
   }`
@@ -599,7 +721,6 @@ function App() {
 
   return (
     <div>
-      {/* ---------- LANDING VIEW (light) ---------- */}
       {view === 'landing' && (
         <div className="flex min-h-screen flex-col" style={LANDING_BG}>
           <header className="bg-pitch-green px-6 py-4">
@@ -693,7 +814,6 @@ function App() {
         </div>
       )}
 
-      {/* ---------- ANALYSIS VIEW (dark / floodlit) ---------- */}
       {view === 'analysis' && data && (
         <div className="min-h-screen bg-floodlit text-white">
           <div className="flex items-center justify-between px-6 py-4">
@@ -764,6 +884,28 @@ function App() {
                     {tab === 'report' && <ReportPanel report={report} />}
                   </div>
                 </div>
+
+                <div className="mt-10 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={handleGenerateCard}
+                    disabled={generatingCard}
+                    className="rounded-lg bg-pitch-gold px-8 py-3 text-sm font-bold uppercase tracking-wide text-floodlit hover:opacity-90 disabled:opacity-60"
+                  >
+                    {generatingCard ? 'Generating…' : 'Generate Card'}
+                  </button>
+                </div>
+
+                <ShareCard
+                  data={data}
+                  compare={compare}
+                  tilt={tilt}
+                  cardRef={cardRef}
+                  visible={cardVisible}
+                  scopeLabel={format || 'All formats'}
+                  batterLabel={labelFor(data.batter)}
+                  bowlerLabel={labelFor(data.bowler)}
+                />
               </div>
             ) : (
               <p className="mx-auto max-w-2xl text-center text-lg font-medium text-gray-400">
@@ -774,7 +916,6 @@ function App() {
         </div>
       )}
 
-      {/* Black overlay used for the floodlit fade between views. */}
       <div
         className={`pointer-events-none fixed inset-0 z-50 bg-floodlit transition-opacity duration-500 ${
           fading ? 'opacity-100' : 'opacity-0'
