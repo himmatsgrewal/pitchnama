@@ -66,12 +66,62 @@ function computeTilt(c) {
 
 function TiltMeter({ tilt, shown }) {
   const rotation = -tilt.needle * 0.9
+  // Even contests (verdict starts with "Even") get no winner; nobody breathes.
+  const winner = tilt.verdict.startsWith('Even')
+    ? null
+    : tilt.needle > 0 ? 'batter' : 'bowler'
 
   return (
     <div className={`mx-auto mt-8 max-w-sm ${tilt.smallSample ? 'opacity-40' : ''}`}>
       <svg viewBox="0 0 300 175" className="w-full">
+        <defs>
+          {/* Static, gentle glow — used on the losing side (and both sides when even). */}
+          <filter id="glow-static" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="3" />
+            <feMerge>
+              <feMergeNode />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+          {/* Breathing glow — applied only to the winning side. */}
+          <filter id="glow-pulse" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="3" result="blur">
+              <animate
+                attributeName="stdDeviation"
+                values="2.5;8;2.5"
+                dur="2.6s"
+                repeatCount="indefinite"
+                calcMode="spline"
+                keyTimes="0;0.5;1"
+                keySplines="0.4 0 0.6 1;0.4 0 0.6 1"
+              />
+            </feGaussianBlur>
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+
+        {/* Halo behind each arc — pulses only on the winning side. */}
+        <path
+          d="M 30 150 A 120 120 0 0 1 150 30"
+          fill="none" stroke="#2ecc71" strokeWidth="16" strokeLinecap="round"
+          opacity={winner === 'batter' ? 0.6 : 0.25}
+          filter={winner === 'batter' ? 'url(#glow-pulse)' : 'url(#glow-static)'}
+        />
+        <path
+          d="M 150 30 A 120 120 0 0 1 270 150"
+          fill="none" stroke="#e0a92e" strokeWidth="16" strokeLinecap="round"
+          opacity={winner === 'bowler' ? 0.6 : 0.25}
+          filter={winner === 'bowler' ? 'url(#glow-pulse)' : 'url(#glow-static)'}
+        />
+
+        {/* Crisp top arcs (always solid) */}
         <path d="M 30 150 A 120 120 0 0 1 150 30" fill="none" stroke="#2ecc71" strokeWidth="16" strokeLinecap="round" />
         <path d="M 150 30 A 120 120 0 0 1 270 150" fill="none" stroke="#e0a92e" strokeWidth="16" strokeLinecap="round" />
+
+        {/* Needle */}
         <g
           style={{
             transformOrigin: '150px 150px',
