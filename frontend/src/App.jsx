@@ -33,16 +33,22 @@ function computeTilt(c) {
     dismissal = (matchupBpd / baselineBpd - 1) * 100
   }
 
-  const raw = (scoring + dismissal) / 2
-  const needle = 100 * Math.tanh(raw / 100)
+  // Weight scoring vs survival by format.
+  // Tests: 50/50 — survival matters as much as scoring in long-form cricket.
+  // T20 / ODI / All formats: 60/40 — limited-overs (and the overall picture,
+  // since most deliveries are limited-overs) values scoring more.
+  const scoringWeight = c.format === 'Test' ? 0.5 : 0.6
+  const dismissalWeight = 1 - scoringWeight
+  const raw = scoring * scoringWeight + dismissal * dismissalWeight
+  const needle = 100 * Math.tanh(raw / 50)
 
   const mag = Math.abs(needle)
   let verdict
-  if (mag < 8) {
+  if (mag < 6) {
     verdict = 'Even contest'
   } else {
     const side = needle > 0 ? 'Batter edge' : 'Bowler edge'
-    const strength = mag < 25 ? 'slight' : mag < 55 ? 'clear' : 'strong'
+    const strength = mag < 18 ? 'slight' : mag < 45 ? 'clear' : 'strong'
     verdict = `${side} · ${strength}`
   }
 
