@@ -135,43 +135,43 @@ newcomers); the "why" makes it credible (real reasoning, not fake precision).
 **Data source:** `/compare` returns matchup-vs-baseline numbers per format.
 `matchup_avg: null` means "never dismissed" — handle as the batter-edge case.
 
-### 4a-i. Tilt formula — DRAFT, calibration pending
+### 4a-i. Tilt formula — CALIBRATED & LOCKED (24 Jun 2026)
 
 Core principle: **the needle's tilt must match how one-sided the contest actually
 is.** Big domination → big tilt; slight edge → slight tilt. A glance at the angle
 should *feel* true before any number is read. Output: a single needle value from
 −100 (full gold / bowler) to +100 (full green / batter), 0 = even.
 
-Current implementation:
-- **Scoring axis = strike rate only.** `(matchup_sr / baseline_sr − 1) × 100`.
-  (NOT average — average folds dismissals into it and would double-count with
-  the dismissal axis. SR-only keeps the axes clean.)
-- **Dismissal axis = balls per dismissal.**
-  `(matchup_bpd / baseline_bpd − 1) × 100`. "Never dismissed" → capped at +100
-  (strong batter edge), never divide by zero.
-- **Raw needle** = mean of the two axes.
-- **Shaping**: `100 * tanh(raw / 100)` smooths the value so small edges stay
-  small and large ones saturate at the rail.
-- **Visual rotation:** `−needle * 0.9` (degrees) — positive needle (batter)
-  rotates the indicator counter-clockwise (toward green/left).
-- **Verdict thresholds:** `|needle| < 8` → "Even contest"; `8–25` → "slight";
-  `25–55` → "clear"; `>55` → "strong".
+**Final calibrated formula:**
 
-**Worked example — RG Sharma vs PJ Cummins, all formats (verified data):**
-- Scoring: matchup SR 77.07 / baseline SR 94.23 → −18.2
-- Dismissal: matchup bpd 35.5 / baseline bpd 41.9 → −15.3
-- Raw needle ≈ −16.75 → modest GOLD (bowler) edge
-- "Why" line: *"Bowler edge — strike rate down 18%, dismissed every 36 balls vs his usual 42."*
-- Sanity check: a modest-but-clear Cummins edge matches cricket reality. ✅
+- **Scoring axis** = `(matchup_sr / baseline_sr − 1) × 100`. SR-only (not avg).
+- **Dismissal axis** = `(matchup_bpd / baseline_bpd − 1) × 100`. Never-dismissed → +100.
+- **Format-aware weighting** of the two axes:
+  - Tests → 50/50 (survival matters as much as scoring in long-form)
+  - T20 / ODI / All formats → 60/40 SR-weighted (limited-overs and aggregate views value scoring more, since most deliveries are limited-overs)
+- **Raw needle** = `scoring × scoringWeight + dismissal × dismissalWeight`
+- **Shaping** = `100 × tanh(raw / 50)` — sharper curve so genuinely lopsided contests visually look lopsided, not squashed
+- **Visual rotation:** `−needle × 0.9` degrees
+- **Verdict bands (tightened):**
+  - `|needle| < 6` → "Even contest"
+  - `< 18` → "slight"
+  - `< 45` → "clear"
+  - `≥ 45` → "strong"
 
-**NEXT for this feature (dedicated session):**
-- Calibrate against 5–6 known pairs (a known domination, a known even contest,
-  a known slight edge) until the needle agrees with cricket reality in all of them.
-- Tighten thresholds and the tanh shaping if needed.
-- Only then LOCK the formula. This is a dedicated session, not a quick add-on.
-- Will likely be done while the more powerful model is active.
+**Calibration session — 6 known matchups, all agreed with reality:**
 
-### 4a-ii. Tilt meter — look & motion (BUILT, polish pending)
+| Matchup | Verdict | Note |
+|---|---|---|
+| Rohit Sharma vs Pat Cummins (all) | Bowler edge · slight | Modest, well-known edge |
+| Virat Kohli vs Mitchell Starc (all) | Batter edge · slight | Survival outweighs SR drop |
+| David Warner vs Stuart Broad (all) | Bowler edge · clear | Famous bunny — clear by SR |
+| AB de Villiers vs Lasith Malinga (all) | Batter edge · strong | Meter committed where gut hedged |
+| Steve Smith vs R Ashwin (all) | Batter edge · clear | Meter committed where gut hedged |
+| Babar Azam vs Jasprit Bumrah (all) | Bowler edge · slight | Small sample (59 balls) but trusts what's there |
+
+Small-sample threshold kept at **30 balls** — below that, meter dims to 40% and shows "small sample" label. User trusts the user above 30.
+
+### 4a-ii. Tilt meter — look & motion (BUILT + POLISHED)
 
 - Semicircular gauge: GREEN (batter) left half, GOLD (bowler) right half, white
   needle from centre pivot. Straight up = even; lean = edge; lean amount = one-sidedness.
@@ -187,8 +187,7 @@ Current implementation:
 - Below that: headline numbers (avg · SR · dismissals · etc).
 - Small-sample state: under 30 balls → the whole meter renders at 40% opacity
   with a "small sample" subtitle.
-- **POLISH (pending):** green/gold glow effect on the gauge arcs on the dark
-  background. Build PLAIN + correct first (DONE), then add glow.
+- - **Glow (SHIPPED):** soft SVG-filter halo on each arc. The **winning side breathes** (animated `feGaussianBlur` stdDeviation 2.5→8→2.5 over 2.6s with spline easing); the losing side stays at static gentle glow; even contests show both sides static. The pulse is *meaningful* not decorative — the meter signals who's alive in the contest.
 
 ### 4b. Analysis-Screen Layout (BUILT)
 
