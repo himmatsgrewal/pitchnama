@@ -6,7 +6,7 @@ import {
 import { toPng } from 'html-to-image'
 import './App.css'
 
-const API_BASE = 'http://localhost:8000'
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000'
 
 function formatDeliveries(n) {
   return (n / 1_000_000).toFixed(1) + 'M'

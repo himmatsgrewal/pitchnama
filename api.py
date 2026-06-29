@@ -32,6 +32,9 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "https://pitchnama.com",
+        "https://www.pitchnama.com",
+        "https://pitchnama.onrender.com",
     ],
     allow_methods=["*"],
     allow_headers=["*"],
