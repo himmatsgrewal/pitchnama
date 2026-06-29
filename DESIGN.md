@@ -242,7 +242,7 @@ part of this (by choice — it's part of the goal).
 | 1 | FastAPI wrapper around engine | ✅ DONE — `api.py` at root; endpoints `/matchup`, `/baseline`, `/compare`, `/players`, `/stats`, `/report` returning JSON; CORS enabled for the Vite dev origin |
 | 2 | Front-end fundamentals + build the site | ◀ IN PROGRESS. Landing complete · Analysis screen complete · Tilt meter (draft formula) · Phases tab · Report tab (bilingual EN+Hindi broadcast voice via `/report`) · Charts tab (4 sections: baseline-vs-matchup, phase SR per format, pressure cards, per-competition SR). NEXT: Generate Card button, tilt-meter calibration, tilt-meter glow polish. |
 | 3 | (folded into Stage 2) | — |
-| 4 | Deploy + clean hosting + Instagram prep | The ~$5/mo hosting moment |
+| 4 | Deploy + clean hosting + Instagram prep | ✅ SHIPPED 29 Jun 2026. Backend at https://pitchnama-api.onrender.com (Render Web Service, Singapore region, currently Standard $25/mo). Frontend at https://pitchnama.com (Render Static Site, custom domain via Porkbun DNS). HTTPS via Let's Encrypt. CORS allows pitchnama.com + www + onrender.com + localhost. Auto-deploy from GitHub main on push. KNOWN ISSUE: Standard tier (2GB RAM) periodically hits memory limit on heavy queries — needs DuckDB refactor of engine to drop to Starter $7. Refactor scheduled next session. |
 
 **Estimate:** ~2–3 weeks from here at 2–3 hrs/day to reach the hosting moment.
 
