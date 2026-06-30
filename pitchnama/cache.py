@@ -14,6 +14,8 @@ dismissals are NOT counted, since they are not credited to the bowler.
 """
 
 import os
+import threading
+from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
@@ -169,18 +171,36 @@ def load_cache(cache_path: str = CACHE_PATH) -> pd.DataFrame:
 
 # ---------- DuckDB-backed querying (low, flat memory) ----------
 
-# One process-wide DuckDB connection. DuckDB reads the parquet file directly
-# from disk for each query; it does NOT hold the whole table in RAM. The
+# One process-wide DuckDB connection, created once. DuckDB reads the parquet
+# directly from disk per query; it does NOT hold the whole table in RAM, so the
 # connection itself is tiny.
+#
+# IMPORTANT (thread safety): FastAPI handles each request on its own worker
+# thread, so several queries can run at once. A single DuckDB connection object
+# must NOT be used by multiple threads simultaneously — doing so corrupts its
+# internal state and raises errors. The safe, DuckDB-recommended pattern is to
+# keep ONE shared connection and call .cursor() on it per query; each cursor is
+# an independent, thread-safe execution context over the same database.
 _con: Optional["duckdb.DuckDBPyConnection"] = None
+_con_lock = threading.Lock()
 
 
 def _get_connection() -> "duckdb.DuckDBPyConnection":
     """Return the shared in-process DuckDB connection, creating it once."""
     global _con
     if _con is None:
-        _con = duckdb.connect(database=':memory:')
+        with _con_lock:
+            if _con is None:
+                _con = duckdb.connect(database=':memory:')
     return _con
+
+
+def _cursor() -> "duckdb.DuckDBPyConnection":
+    """
+    Return a fresh cursor over the shared connection. Each request thread gets
+    its own cursor, which is the thread-safe unit of execution in DuckDB.
+    """
+    return _get_connection().cursor()
 
 
 def query_deliveries(
@@ -209,7 +229,7 @@ def query_deliveries(
             f"Run `python scripts/build_cache.py` first."
         )
 
-    con = _get_connection()
+    con = _cursor()
 
     clauses = []
     params: list = []
@@ -229,4 +249,28 @@ def query_deliveries(
     where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
     sql = f"SELECT * FROM read_parquet(?){where}"
 
-    return con.execute(sql, [cache_path, *params]).fetch_df()
+    result = con.execute(sql, [cache_path, *params]).fetch_df()
+
+    # Defensive: some DuckDB/pandas version combinations return None instead of
+    # an empty DataFrame when a query matches zero rows. Downstream code expects
+    # a DataFrame in every case (it calls len(...) and selects columns), so
+    # normalise None to a correctly-shaped empty DataFrame with the right columns.
+    if result is None:
+        cols = _get_columns(cache_path)
+        return pd.DataFrame(columns=cols)
+
+    return result
+
+
+@lru_cache(maxsize=1)
+def _get_columns(cache_path: str = CACHE_PATH) -> tuple:
+    """
+    Return the parquet's column names (cached). Used to build a correctly-shaped
+    empty DataFrame when a query matches no rows, so downstream column access
+    behaves exactly as it did with the old full-load path.
+    """
+    con = _cursor()
+    info = con.execute(
+        "SELECT * FROM read_parquet(?) LIMIT 0", [cache_path]
+    ).fetch_df()
+    return tuple(info.columns)
