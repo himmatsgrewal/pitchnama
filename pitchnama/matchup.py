@@ -5,6 +5,14 @@ Core analysis functions for PitchNama. Given a batter and bowler, computes
 head-to-head stats with format-aware phase splits, contextualised against
 the batter's career baseline.
 
+Data access note (DuckDB refactor):
+    Rows are pulled on demand from the parquet on disk via
+    cache.query_deliveries(), which returns only the rows matching the
+    requested batter / bowler / scope. Every calculation below then runs on
+    that small pandas DataFrame exactly as before — pandas still does all the
+    arithmetic, so the numbers are identical to the previous full-load
+    implementation; only the memory footprint changes.
+
 Phase definitions are FORMAT-AWARE:
 
     T20  (overs 0-indexed):
@@ -26,20 +34,19 @@ Phase splits only make sense within a single format. For 'all formats'
 scope, splits are computed PER FORMAT separately (never mixed).
 """
 
-from functools import lru_cache
 from typing import Optional
 
 import pandas as pd
 
-from .cache import load_cache
+from .cache import query_deliveries
+from .data_loader import CRICSHEET_DATASETS
 
 
-# ---------- Cache ----------
-
-@lru_cache(maxsize=1)
-def _get_data() -> pd.DataFrame:
-    """Load the deliveries DataFrame once per session, then reuse."""
-    return load_cache()
+# Canonical competition order — the order datasets are parsed in build_cache
+# (i.e. the order they appear in the built parquet). competition_breakdown is
+# emitted in this order so its JSON key order is deterministic and does not
+# depend on the order DuckDB happens to return rows in.
+_COMPETITION_ORDER = list(CRICSHEET_DATASETS.keys())
 
 
 # ---------- Phase definitions (format-aware) ----------
@@ -98,16 +105,6 @@ def _safe_divide(num: float, den: float) -> Optional[float]:
     return num / den if den > 0 else None
 
 
-def _apply_filters(df: pd.DataFrame,
-                   format: Optional[str] = None,
-                   competition: Optional[str] = None) -> pd.DataFrame:
-    if format is not None:
-        df = df[df['format'] == format]
-    if competition is not None:
-        df = df[df['competition'] == competition]
-    return df
-
-
 # ---------- Stats ----------
 
 def _compute_stats(df: pd.DataFrame) -> dict:
@@ -156,8 +153,10 @@ def _phase_splits_by_format(df: pd.DataFrame) -> dict:
 
 def _competition_split(df: pd.DataFrame) -> dict:
     result = {}
-    for comp in df['competition'].unique():
-        result[comp] = _compute_stats(df[df['competition'] == comp])
+    present = set(df['competition'].unique())
+    for comp in _COMPETITION_ORDER:
+        if comp in present:
+            result[comp] = _compute_stats(df[df['competition'] == comp])
     return result
 
 
@@ -167,9 +166,10 @@ def analyze_matchup(batter_name: str, bowler_name: str,
                     format: Optional[str] = None,
                     competition: Optional[str] = None) -> dict:
     """Full matchup analysis with format-aware phase splits."""
-    df = _get_data()
-    df = _apply_filters(df, format=format, competition=competition)
-    matchup_df = df[(df['batter'] == batter_name) & (df['bowler'] == bowler_name)]
+    matchup_df = query_deliveries(
+        batter=batter_name, bowler=bowler_name,
+        format=format, competition=competition,
+    )
 
     if len(matchup_df) == 0:
         return {
@@ -206,9 +206,10 @@ def analyze_batter_overall(batter_name: str,
                            format: Optional[str] = None,
                            competition: Optional[str] = None) -> Optional[dict]:
     """Batter's baseline across all bowlers in scope, with per-format phase splits."""
-    df = _get_data()
-    df = _apply_filters(df, format=format, competition=competition)
-    batter_df = df[df['batter'] == batter_name]
+    batter_df = query_deliveries(
+        batter=batter_name,
+        format=format, competition=competition,
+    )
     if len(batter_df) == 0:
         return None
     return {

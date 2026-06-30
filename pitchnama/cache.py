@@ -4,9 +4,9 @@ cache.py — Fast ball-by-ball cache for PitchNama.
 Builds a unified Parquet table containing every ball from every Cricsheet
 dataset PitchNama supports (IPL, T20Is, ODIs, Tests, BBL, PSL, CPL, ...).
 
-The cache file lives at data/deliveries.parquet and is read instantly
-(~50 ms) by all analysis code. The raw JSON files are parsed exactly once
-per build.
+The cache file lives at data/deliveries.parquet. Analysis code queries it
+on demand via DuckDB, which reads only the rows it needs straight from disk
+(low, flat memory) instead of loading all ~4.4M rows into RAM.
 
 The `wicket` column counts ONLY bowler-credited dismissals (bowled, caught,
 lbw, stumped, caught & bowled, hit wicket). Run-outs and other non-bowler
@@ -15,7 +15,9 @@ dismissals are NOT counted, since they are not credited to the bowler.
 
 import os
 from pathlib import Path
+from typing import Optional
 
+import duckdb
 import pandas as pd
 
 from .data_loader import (
@@ -149,7 +151,12 @@ def build_cache(output_path: str = CACHE_PATH, verbose: bool = True) -> pd.DataF
 
 def load_cache(cache_path: str = CACHE_PATH) -> pd.DataFrame:
     """
-    Load the cached deliveries DataFrame from disk.
+    Load the entire cached deliveries DataFrame from disk into memory.
+
+    Kept for tooling/scripts that genuinely want the whole table. The live
+    analysis path no longer calls this; it uses query_deliveries() instead,
+    which reads only the rows it needs.
+
     Raises FileNotFoundError if the cache doesn't exist. Run build_cache first.
     """
     if not os.path.exists(cache_path):
@@ -158,3 +165,68 @@ def load_cache(cache_path: str = CACHE_PATH) -> pd.DataFrame:
             f"Run `python scripts/build_cache.py` first."
         )
     return pd.read_parquet(cache_path, engine='pyarrow')
+
+
+# ---------- DuckDB-backed querying (low, flat memory) ----------
+
+# One process-wide DuckDB connection. DuckDB reads the parquet file directly
+# from disk for each query; it does NOT hold the whole table in RAM. The
+# connection itself is tiny.
+_con: Optional["duckdb.DuckDBPyConnection"] = None
+
+
+def _get_connection() -> "duckdb.DuckDBPyConnection":
+    """Return the shared in-process DuckDB connection, creating it once."""
+    global _con
+    if _con is None:
+        _con = duckdb.connect(database=':memory:')
+    return _con
+
+
+def query_deliveries(
+    cache_path: str = CACHE_PATH,
+    batter: Optional[str] = None,
+    bowler: Optional[str] = None,
+    format: Optional[str] = None,
+    competition: Optional[str] = None,
+) -> pd.DataFrame:
+    """
+    Read just the deliveries matching the given filters, straight from the
+    parquet on disk, and return them as a pandas DataFrame.
+
+    This is the memory-saving heart of the refactor: instead of loading all
+    ~4.4M rows, DuckDB scans the parquet and returns only the (usually small)
+    set of rows for one batter / matchup / scope. Every downstream calculation
+    in matchup.py then runs on this small frame exactly as before — pandas
+    still does all the maths, so the numbers are unchanged.
+
+    The returned DataFrame has the same columns and dtypes the old
+    pd.read_parquet path produced, so calling code does not change.
+    """
+    if not os.path.exists(cache_path):
+        raise FileNotFoundError(
+            f"Cache not found at {cache_path}. "
+            f"Run `python scripts/build_cache.py` first."
+        )
+
+    con = _get_connection()
+
+    clauses = []
+    params: list = []
+    if batter is not None:
+        clauses.append("batter = ?")
+        params.append(batter)
+    if bowler is not None:
+        clauses.append("bowler = ?")
+        params.append(bowler)
+    if format is not None:
+        clauses.append('"format" = ?')
+        params.append(format)
+    if competition is not None:
+        clauses.append("competition = ?")
+        params.append(competition)
+
+    where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
+    sql = f"SELECT * FROM read_parquet(?){where}"
+
+    return con.execute(sql, [cache_path, *params]).fetch_df()

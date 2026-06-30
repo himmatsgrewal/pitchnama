@@ -52,3 +52,6 @@ desktop.ini
 truth/
 truth_after/
 capture_truth.py
+verify_refactor.py
+mem_check.py
+mem_check_draft.py
