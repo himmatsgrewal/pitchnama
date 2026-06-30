@@ -242,7 +242,7 @@ part of this (by choice — it's part of the goal).
 | 1 | FastAPI wrapper around engine | ✅ DONE — `api.py` at root; endpoints `/matchup`, `/baseline`, `/compare`, `/players`, `/stats`, `/report` returning JSON; CORS enabled for the Vite dev origin |
 | 2 | Front-end fundamentals + build the site | ◀ IN PROGRESS. Landing complete · Analysis screen complete · Tilt meter (draft formula) · Phases tab · Report tab (bilingual EN+Hindi broadcast voice via `/report`) · Charts tab (4 sections: baseline-vs-matchup, phase SR per format, pressure cards, per-competition SR). NEXT: Generate Card button, tilt-meter calibration, tilt-meter glow polish. |
 | 3 | (folded into Stage 2) | — |
-| 4 | Deploy + clean hosting + Instagram prep | ✅ SHIPPED 29 Jun 2026. Backend at https://pitchnama-api.onrender.com (Render Web Service, Singapore region, currently Standard $25/mo). Frontend at https://pitchnama.com (Render Static Site, custom domain via Porkbun DNS). HTTPS via Let's Encrypt. CORS allows pitchnama.com + www + onrender.com + localhost. Auto-deploy from GitHub main on push. KNOWN ISSUE: Standard tier (2GB RAM) periodically hits memory limit on heavy queries — needs DuckDB refactor of engine to drop to Starter $7. Refactor scheduled next session. |
+| 4 | Deploy + clean hosting + Instagram prep | ✅ SHIPPED 29 Jun 2026. Backend at https://pitchnama-api.onrender.com (Render Web Service, Singapore region, currently Standard $25/mo). Frontend at https://pitchnama.com (Render Static Site, custom domain via Porkbun DNS). HTTPS via Let's Encrypt. CORS allows pitchnama.com + www + onrender.com + localhost. Auto-deploy from GitHub main on push. RESOLVED 30 Jun 2026: DuckDB refactor shipped. Engine now queries the parquet from disk via DuckDB (per-request cursors for thread safety) instead of loading all 4.4M rows into pandas RAM. Peak memory ~249MB (was near 2GB). Output verified byte-identical across all endpoints (96 reference captures, 6 test pairs x 4 formats). A thread-safety bug (shared DuckDB connection 500-ing under concurrent requests) was found and fixed post-deploy; verification now includes a concurrency test. Memory refactor verified, but Starter (512MB) crashed under heavy concurrent load during stress testing, so chose Standard ($25/mo, 2GB) for launch headroom. Tier can drop to Starter later if real traffic proves light.
 
 **Estimate:** ~2–3 weeks from here at 2–3 hrs/day to reach the hosting moment.
 
@@ -295,6 +295,7 @@ part of this (by choice — it's part of the goal).
 ## 8. What's Already Done
 
 **The engine (COMPLETE, do not rebuild):**
+**Data access (DuckDB, 30 Jun 2026):** the engine reads the parquet from disk via DuckDB on demand (`cache.query_deliveries`), returning only the rows a query needs. pandas still does all the maths on the small result, so numbers are identical to the old full-load path. One shared DuckDB connection, a fresh `.cursor()` per query for thread safety. This is what lets the service run on Render without loading ~4.4M rows into RAM.
 4.4M+ deliveries · 9,400+ matches · 7 competitions · 3 formats (Cricsheet), growing
 weekly via the manual mirror refresh + nightly robot rebuild.
 Modular Python package (cache, matchup, scout_report, players, charts, data_loader).
