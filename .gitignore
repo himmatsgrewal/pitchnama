@@ -47,3 +47,8 @@ desktop.ini
 # Environment variable files (NEVER commit secrets)
 .env
 .env.local
+
+# Refactor verification scratch (truth captures + diff outputs, local only)
+truth/
+truth_after/
+capture_truth.py
