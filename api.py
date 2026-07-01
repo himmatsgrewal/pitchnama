@@ -46,18 +46,24 @@ def _get_stats() -> dict:
     """
     Count the live dataset totals once, then reuse.
 
-    Reads only the two columns it needs (cheap on memory), counted the same
-    way build_cache reports them. The figures reflect whatever the daily
-    auto-update robot last built; cached for the life of the server process,
-    so a redeploy after fresh data picks up the new numbers.
+    Reads only the columns it needs (cheap on memory), counted the same way
+    build_cache reports them. Now also reports the data's date range (earliest
+    and latest year) so the front-end can show accurate, self-updating coverage
+    ("2001–2026") without hardcoding years. The figures reflect whatever the
+    daily auto-update robot last built; cached for the life of the server
+    process, so a redeploy after fresh data picks up the new numbers.
     """
     df = pd.read_parquet(
-        CACHE_PATH, columns=['match_id', 'competition'], engine='pyarrow'
+        CACHE_PATH, columns=['match_id', 'competition', 'date'], engine='pyarrow'
     )
+    # date is stored as an ISO string 'YYYY-MM-DD'; the first 4 chars are the year.
+    years = df['date'].str.slice(0, 4)
     return {
         'deliveries': int(len(df)),
         'matches': int(df['match_id'].nunique()),
         'competitions': int(df['competition'].nunique()),
+        'year_start': int(years.min()),
+        'year_end': int(years.max()),
     }
 
 

@@ -34,8 +34,8 @@ function computeTilt(c) {
   }
 
   // Weight scoring vs survival by format.
-  // Tests: 50/50 — survival matters as much as scoring in long-form cricket.
-  // T20 / ODI / All formats: 60/40 — limited-overs (and the overall picture,
+  // Tests: 50/50 - survival matters as much as scoring in long-form cricket.
+  // T20 / ODI / All formats: 60/40 - limited-overs (and the overall picture,
   // since most deliveries are limited-overs) values scoring more.
   const scoringWeight = c.format === 'Test' ? 0.5 : 0.6
   const dismissalWeight = 1 - scoringWeight
@@ -75,7 +75,7 @@ function TiltMeter({ tilt, shown }) {
     <div className={`mx-auto mt-8 max-w-sm ${tilt.smallSample ? 'opacity-40' : ''}`}>
       <svg viewBox="0 0 300 175" className="w-full">
         <defs>
-          {/* Static, gentle glow — used on the losing side (and both sides when even). */}
+          {/* Static, gentle glow - used on the losing side (and both sides when even). */}
           <filter id="glow-static" x="-30%" y="-30%" width="160%" height="160%">
             <feGaussianBlur stdDeviation="3" />
             <feMerge>
@@ -83,7 +83,7 @@ function TiltMeter({ tilt, shown }) {
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
-          {/* Breathing glow — applied only to the winning side. */}
+          {/* Breathing glow - applied only to the winning side. */}
           <filter id="glow-pulse" x="-30%" y="-30%" width="160%" height="160%">
             <feGaussianBlur stdDeviation="3" result="blur">
               <animate
@@ -103,7 +103,7 @@ function TiltMeter({ tilt, shown }) {
           </filter>
         </defs>
 
-        {/* Halo behind each arc — pulses only on the winning side. */}
+        {/* Halo behind each arc - pulses only on the winning side. */}
         <path
           d="M 30 150 A 120 120 0 0 1 150 30"
           fill="none" stroke="#2ecc71" strokeWidth="16" strokeLinecap="round"
@@ -164,10 +164,10 @@ function PhaseTable({ phases }) {
   const cols = [
     ['Balls', (p) => p.balls],
     ['Runs', (p) => p.runs],
-    ['Avg', (p) => (p.avg != null ? p.avg.toFixed(1) : '—')],
-    ['SR', (p) => (p.sr != null ? p.sr.toFixed(1) : '—')],
+    ['Avg', (p) => (p.avg != null ? p.avg.toFixed(1) : '-')],
+    ['SR', (p) => (p.sr != null ? p.sr.toFixed(1) : '-')],
     ['Wkts', (p) => p.wickets],
-    ['Dot %', (p) => (p.dot_pct != null ? p.dot_pct.toFixed(0) : '—')],
+    ['Dot %', (p) => (p.dot_pct != null ? p.dot_pct.toFixed(0) : '-')],
   ]
   return (
     <div className="overflow-x-auto">
@@ -222,7 +222,7 @@ function ChartTooltip({ active, payload, label }) {
           <span style={{ color: entry.color }}>●</span>{' '}
           <span className="text-gray-400">{entry.name}:</span>{' '}
           <span className="font-medium text-white">
-            {entry.value != null ? entry.value.toFixed(1) : '—'}
+            {entry.value != null ? entry.value.toFixed(1) : '-'}
           </span>
           {entry.payload?.balls != null && entry.dataKey === 'sr' && (
             <span className="text-gray-500"> ({entry.payload.balls} balls)</span>
@@ -262,7 +262,7 @@ function PressureMetric({ label, baseline, matchup, delta, batterFriendlyHigh })
   )
 }
 
-// The shareable card — rendered in the viewport but hidden via `visibility`
+// The shareable card - rendered in the viewport but hidden via `visibility`
 // (everything still paints, the browser just doesn't show it).
 // Briefly shown during capture so html-to-image gets accurate styles.
 function ShareCard({ data, compare, tilt, cardRef, scopeLabel, batterLabel, bowlerLabel, visible }) {
@@ -339,7 +339,7 @@ function ShareCard({ data, compare, tilt, cardRef, scopeLabel, batterLabel, bowl
         {[
           { label: 'Balls', value: data.total_balls },
           { label: 'Runs', value: data.total_runs },
-          { label: 'Average', value: data.avg != null ? data.avg.toFixed(1) : '—' },
+          { label: 'Average', value: data.avg != null ? data.avg.toFixed(1) : '-' },
           { label: 'Strike rate', value: data.sr.toFixed(1) },
           { label: 'Dismissals', value: data.dismissals },
           { label: 'Matches', value: data.matches_played },
@@ -536,7 +536,7 @@ function PlayerSelect({ placeholder, accentClass, players, loading, value, onCha
     <div className="relative w-64">
       <input
         type="text"
-        placeholder={loading ? 'Loading players…' : placeholder}
+        placeholder={loading ? 'Loading players...' : placeholder}
         value={value}
         disabled={loading}
         onChange={handleChange}
@@ -583,6 +583,239 @@ function ReportPanel({ report }) {
         <p className="leading-relaxed text-gray-200">{report.hindi}</p>
       </div>
     </div>
+  )
+}
+
+// ---- Landing-page "About" content (below the hero) ----
+
+const FEATURES = [
+  {
+    icon: '⚖️',
+    tint: 'rgba(46,204,113,0.15)',
+    title: 'The tilt meter',
+    body: 'A single needle shows who has the upper hand, and the reasoning behind it, never fake precision.',
+  },
+  {
+    icon: '📊',
+    tint: 'rgba(224,169,46,0.15)',
+    title: 'Phase & matchup charts',
+    body: "See how the contest shifts by phase and format, measured against the batter's own career baseline.",
+  },
+  {
+    icon: '📝',
+    tint: 'rgba(46,204,113,0.15)',
+    title: 'Bilingual scout report',
+    body: 'A pundit-style read of the matchup in English and Hindi, turning the numbers into a story.',
+  },
+  {
+    icon: '🎯',
+    tint: 'rgba(224,169,46,0.15)',
+    title: 'Format-aware analysis',
+    body: 'Powerplay, middle, death, phases that adapt to T20, ODI and Test, never mixed together.',
+  },
+  {
+    icon: '🖼️',
+    tint: 'rgba(46,204,113,0.15)',
+    title: 'Shareable cards',
+    body: 'Turn any matchup into a clean, branded image ready for Instagram or WhatsApp.',
+  },
+  {
+    icon: '🏏',
+    tint: 'rgba(224,169,46,0.15)',
+    title: 'Seven competitions',
+    body: 'IPL, T20Is, ODIs, Tests, BBL, PSL and CPL, millions of deliveries in one place.',
+  },
+]
+
+function AboutSection({ stats }) {
+  const yearRange = stats && stats.year_start && stats.year_end
+    ? `${stats.year_start}-${stats.year_end}`
+    : '2001-2026'
+  const deliveries = stats ? `${formatDeliveries(stats.deliveries)}+ deliveries` : '4.4M+ deliveries'
+  const matches = stats ? `${stats.matches.toLocaleString()} matches` : '9,475 matches'
+
+  return (
+    <section className="mx-auto max-w-4xl px-6 pb-10 pt-14">
+      <div className="border-t border-gray-900/10 pt-14">
+        <span className="text-xs font-bold uppercase tracking-widest text-pitch-green">
+          About PitchNama
+        </span>
+        <h3 className="mt-3 max-w-2xl text-3xl font-extrabold leading-tight text-gray-900">
+          Every batter versus every bowler, told through the numbers.
+        </h3>
+        <p className="mt-4 max-w-2xl text-[17px] leading-relaxed text-gray-600">
+          Pick any <span className="font-semibold text-[#1a9e58]">batter</span> and any{' '}
+          <span className="font-semibold text-[#b8860b]">bowler</span> and PitchNama chronicles
+          their contest, with head-to-head stats, format-aware phase splits, a tilt meter showing
+          who holds the edge, and a broadcast-style scout report in English and Hindi. Built for
+          fans who love the duels within the game.
+        </p>
+
+        <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {FEATURES.map((f) => (
+            <div
+              key={f.title}
+              className="rounded-2xl border border-gray-900/[0.07] bg-white/60 p-5"
+            >
+              <div
+                className="mb-3 flex h-10 w-10 items-center justify-center rounded-[10px] text-xl"
+                style={{ background: f.tint }}
+              >
+                {f.icon}
+              </div>
+              <h4 className="mb-1.5 text-[15px] font-bold text-gray-900">{f.title}</h4>
+              <p className="text-[13.5px] leading-relaxed text-gray-500">{f.body}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-9 flex flex-col gap-2 rounded-2xl border border-gray-900/[0.07] bg-white/55 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <span className="text-[13.5px] text-gray-600">
+            Coverage: <b className="font-bold text-gray-900">{yearRange}</b> · {deliveries} · {matches}
+          </span>
+          <span className="text-[12.5px] text-gray-400">
+            Data from{' '}
+            <a
+              href="https://cricsheet.org"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-gray-500 underline"
+            >
+              Cricsheet
+            </a>{' '}
+            (CC BY-SA 4.0)
+          </span>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function WhyIBuiltThis() {
+  return (
+    <section className="mx-auto max-w-2xl px-6 pb-2 pt-14">
+      <span className="text-xs font-bold uppercase tracking-widest text-pitch-green">
+        Why I built this
+      </span>
+      <div
+        className="relative mt-4 pl-6"
+        style={{
+          backgroundImage: 'linear-gradient(to bottom, #2ecc71, #e0a92e)',
+          backgroundSize: '3px calc(100% - 8px)',
+          backgroundPosition: 'left 4px',
+          backgroundRepeat: 'no-repeat',
+        }}
+      >
+        <p className="mb-3.5 text-[15.5px] italic leading-relaxed text-gray-600">
+          I fell in love with cricket as a kid, and it became the best part of my childhood. I love
+          every format for its own reasons. The ODIs, the T20s, and leagues like the IPL, BBL and
+          more that have carried this game to new fans all over the world. Test cricket will always
+          be closest to my heart, but the truth is I just love all of it.
+        </p>
+        <p className="mb-3.5 text-[15.5px] italic leading-relaxed text-gray-700">
+          A big part of that love came from the modern day legends I grew up watching.{' '}
+          <span className="font-semibold not-italic text-[#1a9e58]">Rohit Sharma</span>{' '}
+          <span className="italic">pulling with all the time in the world,</span>{' '}
+          <span className="font-semibold not-italic text-[#1a9e58]">Virat Kohli</span>{' '}
+          <span className="italic">driving through the covers,</span>{' '}
+          <span className="font-semibold not-italic text-[#b8860b]">Jasprit Bumrah</span>{' '}
+          <span className="italic">
+            nailing his yorkers. Moments like those, and the hard work, dedication, and fight these
+            players bring for their team, pulled me deeper into this game than anything else.
+          </span>
+        </p>
+        <p className="mb-3.5 text-[15.5px] italic leading-relaxed text-gray-600">
+          Like most kids who grow up loving the game, I wanted to play it. That didn't work out, but
+          the love never faded. I still needed to be part of this beautiful game somehow, so I
+          decided to serve it a different way, through the numbers, as an analyst.
+        </p>
+        <p className="mb-3.5 text-[15.5px] italic leading-relaxed text-gray-600">
+          PitchNama is where that begins. It focuses on matchups because that's where cricket's
+          drama really lives, not just in the scoreboard, but in the duels within it. One batter,
+          one bowler, and the story of who holds the edge. This is a start, and only a start. I want
+          to keep building, keep learning, and help this game grow in every way I can.
+        </p>
+        <p className="mb-3.5 text-[15.5px] italic leading-relaxed text-gray-600">
+          Because I believe cricket should be the biggest game on the planet, and I'd love to spend
+          my life helping it get there.
+        </p>
+        <p className="mb-3.5 text-[15.5px] italic leading-relaxed text-gray-600">
+          Cricket isn't just a sport to me. It's a religion, and I'm one of its most devoted
+          followers.
+        </p>
+        <p className="mt-3.5 text-base font-bold text-gray-900">Himmat</p>
+      </div>
+    </section>
+  )
+}
+
+const ROADMAP = [
+  {
+    title: "Women's cricket",
+    body: "The same depth of matchup analysis applied to women's data, covering WT20Is, WODIs, WBBL and WPL. A part of the game that analytics tools have long overlooked.",
+  },
+  {
+    title: 'Venue analysis',
+    body: "How each ground behaves, batting or bowling friendly, phase by phase, so a matchup can be read in the context of where it's played.",
+  },
+]
+
+function RoadmapSection() {
+  return (
+    <section className="mx-auto max-w-4xl px-6 pb-6 pt-6">
+      <span className="text-xs font-bold uppercase tracking-widest text-pitch-gold">
+        What's next
+      </span>
+      <div className="mt-3.5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {ROADMAP.map((r) => (
+          <div
+            key={r.title}
+            className="relative rounded-2xl border border-dashed border-gray-900/20 bg-white/40 p-5"
+          >
+            <span
+              className="absolute right-4 top-4 rounded-full px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-wide text-pitch-gold"
+              style={{ background: 'rgba(224,169,46,0.12)' }}
+            >
+              Coming soon
+            </span>
+            <h4 className="mb-1.5 pr-20 text-[15px] font-bold text-gray-900">{r.title}</h4>
+            <p className="text-[13.5px] leading-relaxed text-gray-500">{r.body}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function Footer() {
+  return (
+    <footer className="mx-auto mt-5 max-w-4xl border-t border-gray-900/10 px-6 pb-12 pt-8 text-center">
+      <p className="text-[15px] text-gray-700">
+        Built by <b className="font-bold text-gray-900">Himmat Singh Grewal</b>
+      </p>
+      <div className="mt-3.5 flex flex-wrap justify-center gap-2.5">
+        <a
+          href="https://github.com/himmatsgrewal"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="rounded-full border border-gray-900/15 px-4 py-1.5 text-[13px] font-semibold text-gray-700 transition-colors hover:border-pitch-green hover:text-[#1a9e58]"
+        >
+          GitHub
+        </a>
+        <a
+          href="https://www.linkedin.com/in/himmatsinghgrewal/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="rounded-full border border-gray-900/15 px-4 py-1.5 text-[13px] font-semibold text-gray-700 transition-colors hover:border-pitch-green hover:text-[#1a9e58]"
+        >
+          LinkedIn
+        </a>
+      </div>
+      <p className="mt-5 text-[12.5px] text-gray-400">
+        Pitch<span className="font-semibold text-pitch-gold">Nama</span> · the chronicle of every
+        contest
+      </p>
+    </footer>
   )
 }
 
@@ -765,7 +998,7 @@ function App() {
     ? [
         { label: 'Balls', value: data.total_balls },
         { label: 'Runs', value: data.total_runs },
-        { label: 'Average', value: data.avg != null ? data.avg.toFixed(2) : '—' },
+        { label: 'Average', value: data.avg != null ? data.avg.toFixed(2) : '-' },
         { label: 'Strike rate', value: data.sr.toFixed(2) },
         { label: 'Dismissals', value: data.dismissals },
         { label: 'Matches', value: data.matches_played },
@@ -839,7 +1072,7 @@ function App() {
                 disabled={analysing}
                 className="rounded-lg bg-pitch-green px-12 py-4 text-xl font-bold text-white hover:bg-green-600 disabled:opacity-60"
               >
-                {analysing ? 'Analysing…' : 'Analyse'}
+                {analysing ? 'Analysing...' : 'Analyse'}
               </button>
             </div>
 
@@ -863,10 +1096,18 @@ function App() {
 
             <p className="mt-12 text-sm text-gray-400">
               {stats
-                ? `${formatDeliveries(stats.deliveries)} deliveries · ${stats.matches.toLocaleString()} matches · ${stats.competitions} competitions`
-                : 'Loading dataset…'}
+                ? `${formatDeliveries(stats.deliveries)} deliveries · ${stats.matches.toLocaleString()} matches · ${stats.competitions} competitions${
+                    stats.year_start && stats.year_end ? ` · ${stats.year_start}-${stats.year_end}` : ''
+                  }`
+                : 'Loading dataset...'}
             </p>
           </main>
+
+          {/* Below-the-hero content: about, features, personal note, roadmap, footer */}
+          <AboutSection stats={stats} />
+          <WhyIBuiltThis />
+          <RoadmapSection />
+          <Footer />
         </div>
       )}
 
@@ -948,7 +1189,7 @@ function App() {
                     disabled={generatingCard}
                     className="rounded-lg bg-pitch-gold px-8 py-3 text-sm font-bold uppercase tracking-wide text-floodlit hover:opacity-90 disabled:opacity-60"
                   >
-                    {generatingCard ? 'Generating…' : 'Generate Card'}
+                    {generatingCard ? 'Generating...' : 'Generate Card'}
                   </button>
                 </div>
 
