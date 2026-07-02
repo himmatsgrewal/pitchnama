@@ -586,45 +586,137 @@ function ReportPanel({ report }) {
   )
 }
 
-// ---- Landing-page "About" content (below the hero) ----
+// ---- Landing-page broadcast styles + content (below and around the hero) ----
+
+const LANDING_CSS = `
+.pn-wrap { max-width: 1000px; margin: 0 auto; padding: 0 28px; }
+.pn-eyebrow {
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600;
+  letter-spacing: 2.5px; text-transform: uppercase; display: inline-flex;
+  align-items: center; gap: 9px;
+}
+.pn-eyebrow::before { content: ""; width: 22px; height: 2px; background: currentColor; display: inline-block; }
+.pn-eyebrow.grn { color: #1a9e58; }
+.pn-eyebrow.gld { color: #b8860b; }
+
+/* ABOUT */
+.pn-about { padding: 60px 0 20px; border-top: 1px solid rgba(13,17,23,0.10); }
+.pn-about h2 {
+  font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 40px; line-height: 1.05;
+  letter-spacing: -0.3px; margin: 18px 0 0; max-width: 640px; text-transform: uppercase; color: #0d1117;
+}
+.pn-lead { margin-top: 18px; max-width: 620px; font-size: 16.5px; line-height: 1.65; color: #384049; }
+.pn-lead b.grn { color: #1a9e58; font-weight: 600; }
+.pn-lead b.gld { color: #b8860b; font-weight: 600; }
+
+.pn-features { margin-top: 40px; border-top: 2px solid #0d1117; }
+@media (min-width: 720px) { .pn-features { display: grid; grid-template-columns: 1fr 1fr; column-gap: 40px; } }
+.pn-feat { display: grid; grid-template-columns: 44px 1fr; gap: 18px; padding: 22px 4px;
+  border-bottom: 1px solid rgba(13,17,23,0.10); align-items: start; }
+.pn-feat .ic { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #0d1117; }
+.pn-feat .ic svg { width: 30px; height: 30px; }
+.pn-feat h3 { font-family: 'Oswald', sans-serif; font-weight: 500; font-size: 19px;
+  letter-spacing: 0.2px; text-transform: uppercase; margin-bottom: 4px; color: #0d1117; }
+.pn-feat p { font-size: 14px; line-height: 1.55; color: #5c6570; max-width: 560px; }
+
+.pn-coverage { margin-top: 26px; display: flex; flex-wrap: wrap; gap: 6px 20px;
+  justify-content: space-between; align-items: center; font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px; letter-spacing: 0.5px; color: #5c6570; padding: 14px 0 0; border-top: 1px solid rgba(13,17,23,0.10); }
+.pn-coverage b { color: #0d1117; }
+.pn-coverage a { color: #5c6570; }
+
+/* WHAT'S NEXT */
+.pn-next { padding: 56px 0 20px; border-top: 1px solid rgba(13,17,23,0.10); }
+.pn-next-grid { margin-top: 26px; display: grid; grid-template-columns: 1fr; gap: 0; }
+@media (min-width: 720px) { .pn-next-grid { grid-template-columns: 1fr 1fr; column-gap: 40px; } }
+.pn-next-item { padding: 22px 0; border-top: 1px solid rgba(13,17,23,0.10);
+  display: grid; grid-template-columns: 1fr auto; align-items: start; gap: 12px; }
+.pn-next-item h3 { font-family: 'Oswald', sans-serif; font-weight: 500; font-size: 22px;
+  text-transform: uppercase; letter-spacing: 0.2px; color: #0d1117; }
+.pn-next-item p { grid-column: 1 / -1; font-size: 14px; line-height: 1.55; color: #5c6570; margin-top: 6px; max-width: 440px; }
+.pn-pill { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600;
+  letter-spacing: 1.5px; text-transform: uppercase; color: #b8860b;
+  border: 1px solid rgba(184,134,11,0.4); padding: 4px 8px; border-radius: 2px; white-space: nowrap; }
+
+/* WHY + VOICES */
+.pn-why { padding: 60px 0 30px; border-top: 1px solid rgba(13,17,23,0.10); }
+.pn-why-grid { display: grid; grid-template-columns: 1fr; gap: 40px; }
+@media (min-width: 900px) { .pn-why-grid { grid-template-columns: 1.35fr 1fr; gap: 56px; align-items: start; } }
+.pn-why-inner { max-width: 680px; }
+.pn-why-body { margin-top: 20px; }
+.pn-why-body p { font-size: 16px; line-height: 1.58; color: #33393f; margin-bottom: 11px; font-style: italic; }
+.pn-why-body p.lede { font-family: 'Oswald', sans-serif; font-weight: 400; font-size: 22px;
+  line-height: 1.28; text-transform: none; color: #0d1117; letter-spacing: 0; font-style: italic; margin-bottom: 13px; }
+.pn-why-body .grn { color: #1a9e58; font-weight: 600; }
+.pn-why-body .gld { color: #b8860b; font-weight: 600; }
+.pn-why-sign { font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 20px;
+  text-transform: uppercase; letter-spacing: 1px; margin-top: 20px; color: #0d1117;
+  display: inline-flex; align-items: center; gap: 12px; }
+.pn-why-sign::before { content: ""; width: 34px; height: 2px; background: linear-gradient(90deg, #2ecc71, #e0a92e); }
+
+.pn-voices { padding-top: 46px; }
+.pn-vhead { font-family: 'Oswald', sans-serif; text-transform: uppercase; letter-spacing: 0.5px;
+  font-size: 15px; color: #5c6570; margin: 14px 0 22px; font-weight: 500; }
+.pn-quote { padding: 26px 0; border-top: 1px solid rgba(13,17,23,0.10); }
+.pn-quote:first-of-type { border-top: 2px solid #0d1117; padding-top: 24px; }
+.pn-quote:last-of-type { padding-bottom: 4px; }
+.pn-quote p { font-style: italic; font-size: 15.5px; line-height: 1.65; color: #2b3138; margin-bottom: 13px; }
+.pn-quote .who { font-family: 'Oswald', sans-serif; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.4px; font-size: 14px; color: #0d1117; }
+.pn-quote .role { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #5c6570;
+  display: block; margin-top: 2px; letter-spacing: 0.3px; text-transform: none; }
+
+/* FOOTER */
+.pn-foot { border-top: 2px solid #0d1117; margin-top: 30px; padding: 26px 0 60px; text-align: center; }
+.pn-foot .built { font-family: 'Oswald', sans-serif; text-transform: uppercase; letter-spacing: 0.5px; font-size: 15px; color: #0d1117; }
+.pn-foot .built b { font-weight: 600; }
+.pn-foot .links { margin-top: 14px; display: flex; gap: 10px; justify-content: center; }
+.pn-foot .links a { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 1px;
+  text-transform: uppercase; text-decoration: none; color: #0d1117; border: 1px solid #0d1117;
+  padding: 7px 16px; border-radius: 2px; transition: all 0.15s; }
+.pn-foot .links a:hover { background: #0d1117; color: #fff; }
+.pn-foot .brand { margin-top: 20px; font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+  letter-spacing: 1px; color: #9aa3ad; text-transform: uppercase; }
+.pn-foot .brand b { color: #b8860b; }
+
+/* HERO broadcast type */
+.pn-hero-head { font-family: 'Oswald', sans-serif; font-weight: 700; letter-spacing: -0.5px;
+  text-transform: uppercase; line-height: 1.0; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.pn-hero-head .l2 { display: inline-flex; align-items: baseline; }
+.pn-ballO { display: inline-block; height: 0.78em; width: 0.78em; margin: 0 0.02em; transform: translateY(0.03em); }
+.pn-ballO svg { height: 100%; width: 100%; }
+.pn-logo { font-family: 'Oswald', sans-serif; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+`
+
+// cricket line icons for the feature list
+const FEAT_ICONS = {
+  tilt: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 15a9 9 0 0 1 18 0" /><line x1="12" y1="15" x2="16" y2="9" /><circle cx="12" cy="15" r="1.4" fill="currentColor" stroke="none" /></svg>
+  ),
+  charts: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><line x1="4" y1="20" x2="4" y2="12" /><line x1="10" y1="20" x2="10" y2="6" /><line x1="16" y1="20" x2="16" y2="14" /><line x1="22" y1="20" x2="22" y2="9" /></svg>
+  ),
+  report: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 3h9l4 4v14H6z" /><path d="M15 3v4h4" /><line x1="9" y1="12" x2="16" y2="12" /><line x1="9" y1="16" x2="16" y2="16" /></svg>
+  ),
+  format: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="4" /><circle cx="12" cy="12" r="0.5" fill="currentColor" stroke="none" /></svg>
+  ),
+  cards: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="14" rx="1.5" /><path d="M3 15l5-4 4 3 3-2 6 4" /><circle cx="8" cy="9.5" r="1.3" /></svg>
+  ),
+  comps: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v13" /><path d="M7 5l10 0" /><path d="M9 21h6" /><path d="M12 16c-3 0-5-2-5-5" /><path d="M12 16c3 0 5-2 5-5" /></svg>
+  ),
+}
 
 const FEATURES = [
-  {
-    icon: '⚖️',
-    tint: 'rgba(46,204,113,0.15)',
-    title: 'The tilt meter',
-    body: 'A single needle shows who has the upper hand, and the reasoning behind it, never fake precision.',
-  },
-  {
-    icon: '📊',
-    tint: 'rgba(224,169,46,0.15)',
-    title: 'Phase & matchup charts',
-    body: "See how the contest shifts by phase and format, measured against the batter's own career baseline.",
-  },
-  {
-    icon: '📝',
-    tint: 'rgba(46,204,113,0.15)',
-    title: 'Bilingual scout report',
-    body: 'A pundit-style read of the matchup in English and Hindi, turning the numbers into a story.',
-  },
-  {
-    icon: '🎯',
-    tint: 'rgba(224,169,46,0.15)',
-    title: 'Format-aware analysis',
-    body: 'Powerplay, middle, death, phases that adapt to T20, ODI and Test, never mixed together.',
-  },
-  {
-    icon: '🖼️',
-    tint: 'rgba(46,204,113,0.15)',
-    title: 'Shareable cards',
-    body: 'Turn any matchup into a clean, branded image ready for Instagram or WhatsApp.',
-  },
-  {
-    icon: '🏏',
-    tint: 'rgba(224,169,46,0.15)',
-    title: 'Seven competitions',
-    body: 'IPL, T20Is, ODIs, Tests, BBL, PSL and CPL, millions of deliveries in one place.',
-  },
+  { icon: 'tilt', title: 'The tilt meter', body: 'One needle for who holds the edge, with the reasoning underneath. No false precision.' },
+  { icon: 'charts', title: 'Phase & matchup charts', body: "How the contest shifts by phase and format, measured against the batter's own baseline." },
+  { icon: 'report', title: 'Bilingual scout report', body: 'A pundit-style read of the matchup in English and Hindi. The numbers, told as a story.' },
+  { icon: 'format', title: 'Format-aware analysis', body: 'Powerplay, middle, death. Phases that adapt to T20, ODI and Test, never mixed together.' },
+  { icon: 'cards', title: 'Shareable cards', body: 'Turn any matchup into a clean, branded image ready for Instagram or WhatsApp.' },
+  { icon: 'comps', title: 'Seven competitions', body: 'IPL, T20Is, ODIs, Tests, BBL, PSL and CPL. Millions of deliveries in one place.' },
 ]
 
 function AboutSection({ stats }) {
@@ -635,153 +727,98 @@ function AboutSection({ stats }) {
   const matches = stats ? `${stats.matches.toLocaleString()} matches` : '9,475 matches'
 
   return (
-    <section className="mx-auto max-w-4xl px-6 pb-10 pt-14">
-      <div className="border-t border-gray-900/10 pt-14">
-        <span className="text-xs font-bold uppercase tracking-widest text-pitch-green">
-          About PitchNama
-        </span>
-        <h3 className="mt-3 max-w-2xl text-3xl font-extrabold leading-tight text-gray-900">
-          Every batter versus every bowler, told through the numbers.
-        </h3>
-        <p className="mt-4 max-w-2xl text-[17px] leading-relaxed text-gray-600">
-          Pick any <span className="font-semibold text-[#1a9e58]">batter</span> and any{' '}
-          <span className="font-semibold text-[#b8860b]">bowler</span> and PitchNama chronicles
-          their contest, with head-to-head stats, format-aware phase splits, a tilt meter showing
-          who holds the edge, and a broadcast-style scout report in English and Hindi. Built for
-          fans who love the duels within the game.
+    <section className="pn-about">
+      <div className="pn-wrap">
+        <span className="pn-eyebrow grn">About PitchNama</span>
+        <h2>Every batter versus every bowler, read through the numbers.</h2>
+        <p className="pn-lead">
+          Pick any <b className="grn">batter</b> and any <b className="gld">bowler</b>. PitchNama
+          breaks down the contest between them, head-to-head record, phase splits that respect the
+          format, a tilt meter for who holds the edge, and a scout report in English and Hindi. Built
+          for people who watch the duels inside the game, not just the scoreline.
         </p>
 
-        <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="pn-features">
           {FEATURES.map((f) => (
-            <div
-              key={f.title}
-              className="rounded-2xl border border-gray-900/[0.07] bg-white/60 p-5"
-            >
-              <div
-                className="mb-3 flex h-10 w-10 items-center justify-center rounded-[10px] text-xl"
-                style={{ background: f.tint }}
-              >
-                {f.icon}
+            <div className="pn-feat" key={f.title}>
+              <div className="ic">{FEAT_ICONS[f.icon]}</div>
+              <div>
+                <h3>{f.title}</h3>
+                <p>{f.body}</p>
               </div>
-              <h4 className="mb-1.5 text-[15px] font-bold text-gray-900">{f.title}</h4>
-              <p className="text-[13.5px] leading-relaxed text-gray-500">{f.body}</p>
             </div>
           ))}
         </div>
 
-        <div className="mt-9 flex flex-col gap-2 rounded-2xl border border-gray-900/[0.07] bg-white/55 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
-          <span className="text-[13.5px] text-gray-600">
-            Coverage: <b className="font-bold text-gray-900">{yearRange}</b> · {deliveries} · {matches}
-          </span>
-          <span className="text-[12.5px] text-gray-400">
-            Data from{' '}
-            <a
-              href="https://cricsheet.org"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-gray-500 underline"
-            >
-              Cricsheet
-            </a>{' '}
-            (CC BY-SA 4.0)
-          </span>
+        <div className="pn-coverage">
+          <span>Coverage <b>{yearRange}</b> &nbsp;/&nbsp; {deliveries} &nbsp;/&nbsp; {matches}</span>
+          <span>Data <a href="https://cricsheet.org" target="_blank" rel="noopener noreferrer">Cricsheet</a> (CC BY-SA 4.0)</span>
         </div>
-      </div>
-    </section>
-  )
-}
-
-function WhyIBuiltThis() {
-  return (
-    <section className="mx-auto max-w-2xl px-6 pb-2 pt-14">
-      <span className="text-xs font-bold uppercase tracking-widest text-pitch-green">
-        Why I built this
-      </span>
-      <div
-        className="relative mt-4 pl-6"
-        style={{
-          backgroundImage: 'linear-gradient(to bottom, #2ecc71, #e0a92e)',
-          backgroundSize: '3px calc(100% - 8px)',
-          backgroundPosition: 'left 4px',
-          backgroundRepeat: 'no-repeat',
-        }}
-      >
-        <p className="mb-3.5 text-[15.5px] italic leading-relaxed text-gray-600">
-          I fell in love with cricket as a kid, and it became the best part of my childhood. I love
-          every format for its own reasons. The ODIs, the T20s, and leagues like the IPL, BBL and
-          more that have carried this game to new fans all over the world. Test cricket will always
-          be closest to my heart, but the truth is I just love all of it.
-        </p>
-        <p className="mb-3.5 text-[15.5px] italic leading-relaxed text-gray-700">
-          A big part of that love came from the modern day legends I grew up watching.{' '}
-          <span className="font-semibold not-italic text-[#1a9e58]">Rohit Sharma</span>{' '}
-          <span className="italic">pulling with all the time in the world,</span>{' '}
-          <span className="font-semibold not-italic text-[#1a9e58]">Virat Kohli</span>{' '}
-          <span className="italic">driving through the covers,</span>{' '}
-          <span className="font-semibold not-italic text-[#b8860b]">Jasprit Bumrah</span>{' '}
-          <span className="italic">
-            nailing his yorkers. Moments like those, and the hard work, dedication, and fight these
-            players bring for their team, pulled me deeper into this game than anything else.
-          </span>
-        </p>
-        <p className="mb-3.5 text-[15.5px] italic leading-relaxed text-gray-600">
-          Like most kids who grow up loving the game, I wanted to play it. That didn't work out, but
-          the love never faded. I still needed to be part of this beautiful game somehow, so I
-          decided to serve it a different way, through the numbers, as an analyst.
-        </p>
-        <p className="mb-3.5 text-[15.5px] italic leading-relaxed text-gray-600">
-          PitchNama is where that begins. It focuses on matchups because that's where cricket's
-          drama really lives, not just in the scoreboard, but in the duels within it. One batter,
-          one bowler, and the story of who holds the edge. This is a start, and only a start. I want
-          to keep building, keep learning, and help this game grow in every way I can.
-        </p>
-        <p className="mb-3.5 text-[15.5px] italic leading-relaxed text-gray-600">
-          Because I believe cricket should be the biggest game on the planet, and I'd love to spend
-          my life helping it get there.
-        </p>
-        <p className="mb-3.5 text-[15.5px] italic leading-relaxed text-gray-600">
-          Cricket isn't just a sport to me. It's a religion, and I'm one of its most devoted
-          followers.
-        </p>
-        <p className="mt-3.5 text-base font-bold text-gray-900">Himmat</p>
       </div>
     </section>
   )
 }
 
 const ROADMAP = [
-  {
-    title: "Women's cricket",
-    body: "The same depth of matchup analysis applied to women's data, covering WT20Is, WODIs, WBBL and WPL. A part of the game that analytics tools have long overlooked.",
-  },
-  {
-    title: 'Venue analysis',
-    body: "How each ground behaves, batting or bowling friendly, phase by phase, so a matchup can be read in the context of where it's played.",
-  },
+  { title: "Women's cricket", body: "The same matchup depth applied to women's data, WT20Is, WODIs, WBBL and WPL. A part of the game analytics tools have long overlooked." },
+  { title: 'Venue analysis', body: "How each ground behaves, batting or bowling friendly, phase by phase, so a matchup can be read in the context of where it's played." },
 ]
 
 function RoadmapSection() {
   return (
-    <section className="mx-auto max-w-4xl px-6 pb-6 pt-6">
-      <span className="text-xs font-bold uppercase tracking-widest text-pitch-gold">
-        What's next
-      </span>
-      <div className="mt-3.5 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {ROADMAP.map((r) => (
-          <div
-            key={r.title}
-            className="relative rounded-2xl border border-dashed border-gray-900/20 bg-white/40 p-5"
-          >
-            <span
-              className="absolute right-4 top-4 rounded-full px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-wide text-pitch-gold"
-              style={{ background: 'rgba(224,169,46,0.12)' }}
-            >
-              Coming soon
-            </span>
-            <h4 className="mb-1.5 pr-20 text-[15px] font-bold text-gray-900">{r.title}</h4>
-            <p className="text-[13.5px] leading-relaxed text-gray-500">{r.body}</p>
+    <section className="pn-next">
+      <div className="pn-wrap">
+        <span className="pn-eyebrow gld">What's next</span>
+        <div className="pn-next-grid">
+          {ROADMAP.map((r) => (
+            <div className="pn-next-item" key={r.title}>
+              <h3>{r.title}</h3>
+              <span className="pn-pill">Coming soon</span>
+              <p>{r.body}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+const VOICES = [
+  { quote: 'Those analytics and data given helps me on the field to make my decisions.', who: 'Rohit Sharma', role: 'Former India captain' },
+  { quote: 'Data has made players sit up and take notice of it.', who: 'Rahul Dravid', role: 'Former India captain & head coach' },
+  { quote: 'Analysis is easy. The trick is turning it into info players can use.', who: 'Nathan Leamon', role: 'Analyst, CricViz co-founder' },
+]
+
+function WhyAndVoices() {
+  return (
+    <section className="pn-why">
+      <div className="pn-wrap">
+        <div className="pn-why-grid">
+          <div className="pn-why-inner">
+            <span className="pn-eyebrow grn">Why I built this</span>
+            <div className="pn-why-body">
+              <p className="lede">I fell in love with cricket as a kid, and it became the best part of my childhood.</p>
+              <p>I love every format for its own reasons. The ODIs, the T20s, and leagues like the IPL, BBL and more that have carried this game to new fans all over the world. Test cricket will always be closest to my heart, but the truth is I just love all of it.</p>
+              <p>A big part of that love came from the modern day legends I grew up watching. <span className="grn">Rohit Sharma</span> pulling with all the time in the world, <span className="grn">Virat Kohli</span> driving through the covers, <span className="gld">Jasprit Bumrah</span> nailing his yorkers. Moments like those, and the hard work, dedication, and fight these players bring for their team, pulled me deeper into this game than anything else.</p>
+              <p>Like most kids who grow up loving the game, I wanted to play it. That didn't work out, but the love never faded. I still needed to be part of this beautiful game somehow, so I decided to serve it a different way, through the numbers, as an analyst.</p>
+              <p>PitchNama is where that begins. It focuses on matchups because that's where cricket's drama really lives, not just in the scoreboard, but in the duels within it. One batter, one bowler, and the story of who holds the edge. This is a start, and only a start. I want to keep building, keep learning, and help this game grow in every way I can.</p>
+              <p>Because I believe cricket should be the biggest game on the planet, and I'd love to spend my life helping it get there.</p>
+              <p>Cricket isn't just a sport to me. It's a religion, and I'm one of its most devoted followers.</p>
+              <div className="pn-why-sign">Himmat</div>
+            </div>
           </div>
-        ))}
+
+          <aside className="pn-voices">
+            <span className="pn-eyebrow gld">Voices from the game</span>
+            <p className="pn-vhead">On data in cricket</p>
+            {VOICES.map((v) => (
+              <div className="pn-quote" key={v.who}>
+                <p>"{v.quote}"</p>
+                <span className="who">{v.who}<span className="role">{v.role}</span></span>
+              </div>
+            ))}
+          </aside>
+        </div>
       </div>
     </section>
   )
@@ -789,42 +826,52 @@ function RoadmapSection() {
 
 function Footer() {
   return (
-    <footer className="mx-auto mt-5 max-w-4xl border-t border-gray-900/10 px-6 pb-12 pt-8 text-center">
-      <p className="text-[15px] text-gray-700">
-        Built by <b className="font-bold text-gray-900">Himmat Singh Grewal</b>
-      </p>
-      <div className="mt-3.5 flex flex-wrap justify-center gap-2.5">
-        <a
-          href="https://github.com/himmatsgrewal"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="rounded-full border border-gray-900/15 px-4 py-1.5 text-[13px] font-semibold text-gray-700 transition-colors hover:border-pitch-green hover:text-[#1a9e58]"
-        >
-          GitHub
-        </a>
-        <a
-          href="https://www.linkedin.com/in/himmatsinghgrewal/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="rounded-full border border-gray-900/15 px-4 py-1.5 text-[13px] font-semibold text-gray-700 transition-colors hover:border-pitch-green hover:text-[#1a9e58]"
-        >
-          LinkedIn
-        </a>
+    <footer className="pn-foot">
+      <div className="pn-wrap">
+        <p className="built">Built by <b>Himmat Singh Grewal</b></p>
+        <div className="links">
+          <a href="https://github.com/himmatsgrewal" target="_blank" rel="noopener noreferrer">GitHub</a>
+          <a href="https://www.linkedin.com/in/himmatsinghgrewal/" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+        </div>
+        <p className="brand">Pitch<b>Nama</b> / the chronicle of every contest</p>
       </div>
-      <p className="mt-5 text-[12.5px] text-gray-400">
-        Pitch<span className="font-semibold text-pitch-gold">Nama</span> · the chronicle of every
-        contest
-      </p>
     </footer>
   )
 }
 
-const LANDING_BG = {
+// cricket ball glyph used as the O in DECODED
+function BallO() {
+  return (
+    <span className="pn-ballO">
+      <svg viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <radialGradient id="pn-lea" cx="36%" cy="30%" r="78%">
+            <stop offset="0%" stopColor="#b4241f" />
+            <stop offset="50%" stopColor="#8f1714" />
+            <stop offset="100%" stopColor="#520c0a" />
+          </radialGradient>
+        </defs>
+        <circle cx="36" cy="36" r="34" fill="url(#pn-lea)" />
+        <ellipse cx="25" cy="22" rx="13" ry="8" fill="#fff" opacity="0.12" />
+        <g stroke="#e9cfa6" strokeWidth="1.7" strokeLinecap="round">
+          <g><line x1="6" y1="28.5" x2="9" y2="28.5" /><line x1="12" y1="28.5" x2="15" y2="28.5" /><line x1="18" y1="28.5" x2="21" y2="28.5" /><line x1="24" y1="28.5" x2="27" y2="28.5" /><line x1="30" y1="28.5" x2="33" y2="28.5" /><line x1="36" y1="28.5" x2="39" y2="28.5" /><line x1="42" y1="28.5" x2="45" y2="28.5" /><line x1="48" y1="28.5" x2="51" y2="28.5" /><line x1="54" y1="28.5" x2="57" y2="28.5" /><line x1="60" y1="28.5" x2="63" y2="28.5" /></g>
+          <g><line x1="9" y1="31.4" x2="12" y2="31.4" /><line x1="15" y1="31.4" x2="18" y2="31.4" /><line x1="21" y1="31.4" x2="24" y2="31.4" /><line x1="27" y1="31.4" x2="30" y2="31.4" /><line x1="33" y1="31.4" x2="36" y2="31.4" /><line x1="39" y1="31.4" x2="42" y2="31.4" /><line x1="45" y1="31.4" x2="48" y2="31.4" /><line x1="51" y1="31.4" x2="54" y2="31.4" /><line x1="57" y1="31.4" x2="60" y2="31.4" /></g>
+          <g><line x1="6" y1="34.3" x2="9" y2="34.3" /><line x1="12" y1="34.3" x2="15" y2="34.3" /><line x1="18" y1="34.3" x2="21" y2="34.3" /><line x1="24" y1="34.3" x2="27" y2="34.3" /><line x1="30" y1="34.3" x2="33" y2="34.3" /><line x1="36" y1="34.3" x2="39" y2="34.3" /><line x1="42" y1="34.3" x2="45" y2="34.3" /><line x1="48" y1="34.3" x2="51" y2="34.3" /><line x1="54" y1="34.3" x2="57" y2="34.3" /><line x1="60" y1="34.3" x2="63" y2="34.3" /></g>
+          <line x1="4" y1="37" x2="68" y2="37" strokeWidth="0.8" opacity="0.6" />
+          <g><line x1="6" y1="39.7" x2="9" y2="39.7" /><line x1="12" y1="39.7" x2="15" y2="39.7" /><line x1="18" y1="39.7" x2="21" y2="39.7" /><line x1="24" y1="39.7" x2="27" y2="39.7" /><line x1="30" y1="39.7" x2="33" y2="39.7" /><line x1="36" y1="39.7" x2="39" y2="39.7" /><line x1="42" y1="39.7" x2="45" y2="39.7" /><line x1="48" y1="39.7" x2="51" y2="39.7" /><line x1="54" y1="39.7" x2="57" y2="39.7" /><line x1="60" y1="39.7" x2="63" y2="39.7" /></g>
+          <g><line x1="9" y1="42.6" x2="12" y2="42.6" /><line x1="15" y1="42.6" x2="18" y2="42.6" /><line x1="21" y1="42.6" x2="24" y2="42.6" /><line x1="27" y1="42.6" x2="30" y2="42.6" /><line x1="33" y1="42.6" x2="36" y2="42.6" /><line x1="39" y1="42.6" x2="42" y2="42.6" /><line x1="45" y1="42.6" x2="48" y2="42.6" /><line x1="51" y1="42.6" x2="54" y2="42.6" /><line x1="57" y1="42.6" x2="60" y2="42.6" /></g>
+          <g><line x1="6" y1="45.5" x2="9" y2="45.5" /><line x1="12" y1="45.5" x2="15" y2="45.5" /><line x1="18" y1="45.5" x2="21" y2="45.5" /><line x1="24" y1="45.5" x2="27" y2="45.5" /><line x1="30" y1="45.5" x2="33" y2="45.5" /><line x1="36" y1="45.5" x2="39" y2="45.5" /><line x1="42" y1="45.5" x2="45" y2="45.5" /><line x1="48" y1="45.5" x2="51" y2="45.5" /><line x1="54" y1="45.5" x2="57" y2="45.5" /><line x1="60" y1="45.5" x2="63" y2="45.5" /></g>
+        </g>
+      </svg>
+    </span>
+  )
+}
+
+const LANDING_HERO_BG = {
   background:
-    'radial-gradient(circle at 12% 18%, rgba(46,204,113,0.22), transparent 45%), ' +
-    'radial-gradient(circle at 88% 22%, rgba(224,169,46,0.18), transparent 45%), ' +
-    'radial-gradient(circle at 50% 105%, rgba(46,204,113,0.12), transparent 55%), ' +
-    '#e9efec',
+    'radial-gradient(circle at 12% 18%, rgba(46,204,113,0.20), transparent 45%), ' +
+    'radial-gradient(circle at 88% 22%, rgba(224,169,46,0.16), transparent 45%), ' +
+    '#ffffff',
 }
 
 const EXAMPLES = [
@@ -1011,22 +1058,25 @@ function App() {
   return (
     <div>
       {view === 'landing' && (
-        <div className="flex min-h-screen flex-col" style={LANDING_BG}>
+        <div className="flex min-h-screen flex-col">
+          <style>{LANDING_CSS}</style>
           <header className="bg-pitch-green px-6 py-4">
-            <h1 className="text-2xl font-bold text-white">
+            <h1 className="pn-logo text-2xl text-white">
               Pitch<span className="text-pitch-gold-bright">Nama</span>
             </h1>
           </header>
 
-          <main className="flex flex-1 flex-col items-center justify-center px-6 py-12 text-center">
-            <h2 className="text-5xl font-bold text-gray-900">
-              Every matchup, decoded.
-            </h2>
+          <div style={LANDING_HERO_BG}>
+          <main className="flex flex-col items-center justify-center px-6 pt-16 pb-20 text-center">
+            <h1 className="pn-hero-head text-6xl text-gray-900">
+              <span>Every matchup,</span>
+              <span className="l2">dec<BallO />ded.</span>
+            </h1>
             <p className="mt-4 text-lg text-gray-500">
               The chronicle of every contest
             </p>
 
-            <div className="mt-12 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
+            <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
               <PlayerSelect
                 placeholder="Batter"
                 accentClass="border-pitch-green"
@@ -1052,7 +1102,7 @@ function App() {
               <p className="mt-4 text-sm font-medium text-red-500">{loadError}</p>
             )}
 
-            <div className="mt-8 flex justify-center">
+            <div className="mt-6 flex justify-center">
               <select
                 value={format}
                 onChange={(e) => setFormat(e.target.value)}
@@ -1065,18 +1115,18 @@ function App() {
               </select>
             </div>
 
-            <div className="mt-8 flex justify-center">
+            <div className="mt-6 flex justify-center">
               <button
                 type="button"
                 onClick={handleAnalyse}
                 disabled={analysing}
-                className="rounded-lg bg-pitch-green px-12 py-4 text-xl font-bold text-white hover:bg-green-600 disabled:opacity-60"
+                className="pn-logo rounded-lg bg-pitch-green px-14 py-3.5 text-xl tracking-wide text-white hover:bg-green-600 disabled:opacity-60"
               >
                 {analysing ? 'Analysing...' : 'Analyse'}
               </button>
             </div>
 
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-2">
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
               <span className="text-sm text-gray-400">Or try:</span>
               {EXAMPLES.map(([b, bw]) => (
                 <button
@@ -1094,19 +1144,20 @@ function App() {
               <p className="mt-6 text-lg font-medium text-red-500">{error}</p>
             )}
 
-            <p className="mt-12 text-sm text-gray-400">
+            <p className="mt-10 text-xs uppercase tracking-widest text-gray-400" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
               {stats
-                ? `${formatDeliveries(stats.deliveries)} deliveries · ${stats.matches.toLocaleString()} matches · ${stats.competitions} competitions${
-                    stats.year_start && stats.year_end ? ` · ${stats.year_start}-${stats.year_end}` : ''
+                ? `${formatDeliveries(stats.deliveries)} deliveries / ${stats.matches.toLocaleString()} matches / ${stats.competitions} competitions${
+                    stats.year_start && stats.year_end ? ` / ${stats.year_start}-${stats.year_end}` : ''
                   }`
                 : 'Loading dataset...'}
             </p>
           </main>
+          </div>
 
-          {/* Below-the-hero content: about, features, personal note, roadmap, footer */}
+          {/* Below-the-hero content */}
           <AboutSection stats={stats} />
-          <WhyIBuiltThis />
           <RoadmapSection />
+          <WhyAndVoices />
           <Footer />
         </div>
       )}
