@@ -589,6 +589,7 @@ function ReportPanel({ report }) {
 // ---- Landing-page broadcast styles + content (below and around the hero) ----
 
 const LANDING_CSS = `
+html { scroll-behavior: smooth; }
 .pn-wrap { max-width: 1000px; margin: 0 auto; padding: 0 28px; }
 .pn-eyebrow {
   font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600;
@@ -667,17 +668,18 @@ const LANDING_CSS = `
   display: block; margin-top: 2px; letter-spacing: 0.3px; text-transform: none; }
 
 /* FOOTER */
-.pn-foot { border-top: 2px solid #0d1117; margin-top: 30px; padding: 26px 0 60px; text-align: center; }
-.pn-foot .built { font-family: 'Oswald', sans-serif; text-transform: uppercase; letter-spacing: 0.5px; font-size: 15px; color: #0d1117; }
+.pn-foot { background: #0d1117; margin-top: 40px; padding: 44px 0 52px; text-align: center; }
+.pn-foot .built { font-family: 'Oswald', sans-serif; text-transform: uppercase; letter-spacing: 0.5px; font-size: 15px; color: #fff; }
 .pn-foot .built b { font-weight: 600; }
 .pn-foot .links { margin-top: 14px; display: flex; gap: 10px; justify-content: center; }
 .pn-foot .links a { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 1px;
-  text-transform: uppercase; text-decoration: none; color: #0d1117; border: 1px solid #0d1117;
+  text-transform: uppercase; text-decoration: none; color: #fff; border: 1px solid #37414d;
   padding: 7px 16px; border-radius: 2px; transition: all 0.15s; }
-.pn-foot .links a:hover { background: #0d1117; color: #fff; }
+.pn-foot .links a:hover { background: #fff; color: #0d1117; }
 .pn-foot .brand { margin-top: 20px; font-family: 'IBM Plex Mono', monospace; font-size: 11px;
-  letter-spacing: 1px; color: #9aa3ad; text-transform: uppercase; }
-.pn-foot .brand b { color: #b8860b; }
+  letter-spacing: 1px; color: #6b7480; text-transform: uppercase; }
+.pn-foot .brand b.grn { color: #2ecc71; }
+.pn-foot .brand b.gld { color: #e0a92e; }
 
 /* HERO broadcast type */
 .pn-hero-head { font-family: 'Oswald', sans-serif; font-weight: 700; letter-spacing: -0.5px;
@@ -686,6 +688,21 @@ const LANDING_CSS = `
 .pn-ballO { display: inline-block; height: 0.78em; width: 0.78em; margin: 0 0.02em; transform: translateY(0.03em); }
 .pn-ballO svg { height: 100%; width: 100%; }
 .pn-logo { font-family: 'Oswald', sans-serif; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+.pn-nav { display: flex; gap: 4px; flex-wrap: wrap; }
+.pn-nav a { font-family: 'Oswald', sans-serif; font-weight: 500; font-size: 13.5px; letter-spacing: 0.6px;
+  text-transform: uppercase; color: #eafff2; text-decoration: none; padding: 8px 13px; border-radius: 6px;
+  transition: background 0.15s, color 0.15s; }
+.pn-nav a:hover { background: rgba(255,255,255,0.18); color: #fff; }
+.pn-topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.pn-section-anchor { scroll-margin-top: 24px; }
+.pn-cue { margin-top: 30px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 2px;
+  text-transform: uppercase; color: #b3bac2; }
+.pn-cue .pn-arrow { display: block; margin: 8px auto 0; width: 1px; height: 22px;
+  background: linear-gradient(#b3bac2, transparent); }
+.pn-backtop { margin-top: 22px; }
+.pn-backtop a { font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 1.5px;
+  text-transform: uppercase; color: #6b7480; text-decoration: none; }
+.pn-backtop a:hover { color: #e0a92e; }
 `
 
 // cricket line icons for the feature list
@@ -826,14 +843,15 @@ function WhyAndVoices() {
 
 function Footer() {
   return (
-    <footer className="pn-foot">
+    <footer className="pn-foot" id="contact">
       <div className="pn-wrap">
         <p className="built">Built by <b>Himmat Singh Grewal</b></p>
         <div className="links">
           <a href="https://github.com/himmatsgrewal" target="_blank" rel="noopener noreferrer">GitHub</a>
           <a href="https://www.linkedin.com/in/himmatsinghgrewal/" target="_blank" rel="noopener noreferrer">LinkedIn</a>
         </div>
-        <p className="brand">Pitch<b>Nama</b> / the chronicle of every contest</p>
+        <p className="brand"><b className="grn">Pitch</b><b className="gld">Nama</b> / the chronicle of every contest</p>
+        <p className="pn-backtop"><a href="#top">↑ Back to top</a></p>
       </div>
     </footer>
   )
@@ -869,8 +887,8 @@ function BallO() {
 
 const LANDING_HERO_BG = {
   background:
-    'radial-gradient(circle at 12% 18%, rgba(46,204,113,0.20), transparent 45%), ' +
-    'radial-gradient(circle at 88% 22%, rgba(224,169,46,0.16), transparent 45%), ' +
+    'radial-gradient(circle at 10% 12%, rgba(46,204,113,0.34), transparent 42%), ' +
+    'radial-gradient(circle at 90% 18%, rgba(224,169,46,0.30), transparent 42%), ' +
     '#ffffff',
 }
 
@@ -1058,12 +1076,20 @@ function App() {
   return (
     <div>
       {view === 'landing' && (
-        <div className="flex min-h-screen flex-col">
+        <div id="top" className="flex min-h-screen flex-col">
           <style>{LANDING_CSS}</style>
           <header className="bg-pitch-green px-6 py-4">
-            <h1 className="pn-logo text-2xl text-white">
-              Pitch<span className="text-pitch-gold-bright">Nama</span>
-            </h1>
+            <div className="pn-topbar">
+              <h1 className="pn-logo text-2xl text-white">
+                Pitch<span className="text-pitch-gold-bright">Nama</span>
+              </h1>
+              <nav className="pn-nav">
+                <a href="#about">About</a>
+                <a href="#next">What's next</a>
+                <a href="#voices">Voices</a>
+                <a href="#contact">Contact</a>
+              </nav>
+            </div>
           </header>
 
           <div style={LANDING_HERO_BG}>
@@ -1151,13 +1177,15 @@ function App() {
                   }`
                 : 'Loading dataset...'}
             </p>
+
+            <div className="pn-cue">Scroll to explore<span className="pn-arrow"></span></div>
           </main>
           </div>
 
           {/* Below-the-hero content */}
-          <AboutSection stats={stats} />
-          <RoadmapSection />
-          <WhyAndVoices />
+          <div id="about" className="pn-section-anchor"><AboutSection stats={stats} /></div>
+          <div id="next" className="pn-section-anchor"><RoadmapSection /></div>
+          <div id="voices" className="pn-section-anchor"><WhyAndVoices /></div>
           <Footer />
         </div>
       )}
