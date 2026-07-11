@@ -16,6 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pitchnama.matchup import (
     analyze_matchup,
     analyze_batter_overall,
+    analyze_bowler_overall,
     compare_matchup_to_baseline,
 )
 from pitchnama.players import load_registry
@@ -164,6 +165,28 @@ def baseline(
             "match_format": match_format,
             "competition": competition,
             "message": "No deliveries found for this batter in this scope.",
+        }
+    return result
+
+
+@app.get("/bowler-baseline")
+def bowler_baseline(
+    bowler: str,
+    match_format: Optional[str] = None,
+    competition: Optional[str] = None,
+) -> dict:
+    """A bowler's own baseline (across all batters in scope), bowling-framed."""
+    result = analyze_bowler_overall(
+        bowler_name=bowler,
+        format=match_format,
+        competition=competition,
+    )
+    if result is None:
+        return {
+            "bowler": bowler,
+            "match_format": match_format,
+            "competition": competition,
+            "message": "No deliveries found for this bowler in this scope.",
         }
     return result
 

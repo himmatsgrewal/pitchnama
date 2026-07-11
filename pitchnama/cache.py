@@ -11,6 +11,12 @@ on demand via DuckDB, which reads only the rows it needs straight from disk
 The `wicket` column counts ONLY bowler-credited dismissals (bowled, caught,
 lbw, stumped, caught & bowled, hit wicket). Run-outs and other non-bowler
 dismissals are NOT counted, since they are not credited to the bowler.
+
+The `batter_out` column counts ANY dismissal of the striker (including run
+outs), attributed to the batter who was actually out. This is what a batter's
+own career average uses (runs / times dismissed), which by convention includes
+run outs. Bowler stats and matchup wickets continue to use `wicket` only, so
+they are unaffected.
 """
 
 import os
@@ -63,6 +69,29 @@ def _is_bowler_wicket(delivery: dict) -> bool:
     return False
 
 
+def _striker_dismissed(delivery: dict) -> bool:
+    """
+    True if the STRIKER (the batter on strike for this delivery) was dismissed
+    on this ball by ANY method — including run outs and other non-bowler
+    dismissals.
+
+    This is what the batter's OWN career average needs: officially, a batting
+    average is runs / (times dismissed), and a run out still ends the innings
+    even though it is not credited to the bowler. We check `player_out` so that
+    a run out of the NON-striker is correctly NOT counted against the striker.
+
+    Kept separate from `_is_bowler_wicket` (which stays bowler-credited only),
+    so bowler stats and matchup wickets are unchanged.
+    """
+    if 'wickets' not in delivery:
+        return False
+    striker = delivery.get('batter')
+    for w in delivery['wickets']:
+        if w.get('player_out') == striker:
+            return True
+    return False
+
+
 def _parse_dataset(code: str, verbose: bool = True) -> list[dict]:
     """Parse a single Cricsheet dataset folder into a list of ball dicts."""
     config = CRICSHEET_DATASETS[code]
@@ -110,6 +139,7 @@ def _parse_dataset(code: str, verbose: bool = True) -> list[dict]:
                 'runs_extras': delivery['runs']['extras'],
                 'runs_total': delivery['runs']['total'],
                 'wicket': _is_bowler_wicket(delivery),
+                'batter_out': _striker_dismissed(delivery),
             })
 
     if verbose:

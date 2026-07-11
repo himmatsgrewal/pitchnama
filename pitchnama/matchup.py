@@ -107,7 +107,7 @@ def _safe_divide(num: float, den: float) -> Optional[float]:
 
 # ---------- Stats ----------
 
-def _compute_stats(df: pd.DataFrame) -> dict:
+def _compute_stats(df: pd.DataFrame, career: bool = False) -> dict:
     n = len(df)
     if n == 0:
         return {'balls': 0}
@@ -116,11 +116,20 @@ def _compute_stats(df: pd.DataFrame) -> dict:
     dots = int(((df['runs_batter'] == 0) & (df['runs_extras'] == 0)).sum())
     fours = int((df['runs_batter'] == 4).sum())
     sixes = int((df['runs_batter'] == 6).sum())
+    # For a batter's OWN career average, dismissals must include run outs etc.
+    # (official average = runs / times dismissed). The `batter_out` column
+    # captures every dismissal of the striker. For matchup stats (career=False)
+    # we keep the bowler-credited `wicket` count, unchanged.
+    if career and 'batter_out' in df.columns:
+        dismissals = int(df['batter_out'].sum())
+    else:
+        dismissals = wickets
     return {
         'balls': n,
         'runs': runs,
         'wickets': wickets,
-        'avg': _safe_divide(runs, wickets),
+        'dismissals': dismissals,
+        'avg': _safe_divide(runs, dismissals),
         'sr': (runs / n) * 100,
         'dot_pct': (dots / n) * 100,
         'fours': fours,
@@ -212,11 +221,109 @@ def analyze_batter_overall(batter_name: str,
     )
     if len(batter_df) == 0:
         return None
+    by_format = {}
+    for fmt in ['T20', 'ODI', 'Test']:
+        fmt_df = batter_df[batter_df['format'] == fmt]
+        if len(fmt_df) > 0:
+            by_format[fmt] = _compute_stats(fmt_df, career=True)
+    by_competition = {}
+    for comp in _COMPETITION_ORDER:
+        comp_df = batter_df[batter_df['competition'] == comp]
+        by_competition[comp] = _compute_stats(comp_df, career=True) if len(comp_df) > 0 else {'balls': 0}
     return {
         'batter': batter_name,
         'format': format, 'competition': competition,
-        'overall': _compute_stats(batter_df),
+        'overall': _compute_stats(batter_df, career=True),
+        'by_format': by_format,
+        'by_competition': by_competition,
         'phase_splits_by_format': _phase_splits_by_format(batter_df),
+    }
+
+
+def _compute_bowling_stats(df: pd.DataFrame) -> dict:
+    """
+    Bowler-framed stats over a set of deliveries the bowler bowled.
+
+    Runs conceded uses TOTAL runs (runs off the bat + all extras), matching how
+    mainstream scorecards (e.g. Cricinfo) report a bowler's runs and economy.
+    Note this slightly over-counts by including byes/leg-byes, which are not
+    strictly the bowler's fault, but it is the widely used convention.
+
+    'wicket' in the cache already counts ONLY bowler-credited dismissals
+    (bowled, caught, lbw, stumped, caught & bowled, hit wicket), so wickets
+    here are the bowler's own.
+    """
+    n = len(df)
+    if n == 0:
+        return {'balls': 0}
+    runs_conceded = int(df['runs_total'].sum())
+    wickets = int(df['wicket'].sum())
+    dots = int(((df['runs_batter'] == 0) & (df['runs_extras'] == 0)).sum())
+    fours = int((df['runs_batter'] == 4).sum())
+    sixes = int((df['runs_batter'] == 6).sum())
+    overs = n / 6.0
+    return {
+        'balls': n,
+        'runs_conceded': runs_conceded,
+        'wickets': wickets,
+        # economy = runs per six balls (over)
+        'economy': _safe_divide(runs_conceded, overs),
+        # bowling average = runs conceded per wicket
+        'avg': _safe_divide(runs_conceded, wickets),
+        # bowling strike rate = balls per wicket
+        'sr': _safe_divide(n, wickets),
+        'dot_pct': (dots / n) * 100,
+        'fours_conceded': fours,
+        'sixes_conceded': sixes,
+        'boundary_pct': ((fours + sixes) / n) * 100,
+    }
+
+
+def _bowling_phase_split_for_format(df: pd.DataFrame, fmt: str) -> dict:
+    """Bowling phase stats for one format's deliveries, using that format's phases."""
+    result = {}
+    for phase in PHASE_NAMES[fmt]:
+        sub = df[_phase_mask(df, fmt, phase)]
+        result[phase] = _compute_bowling_stats(sub)
+    return result
+
+
+def _bowling_phase_splits_by_format(df: pd.DataFrame) -> dict:
+    """Bowling phase splits for each format present in df, separately."""
+    out = {}
+    for fmt in ['T20', 'ODI', 'Test']:
+        fmt_df = df[df['format'] == fmt]
+        if len(fmt_df) > 0:
+            out[fmt] = _bowling_phase_split_for_format(fmt_df, fmt)
+    return out
+
+
+def analyze_bowler_overall(bowler_name: str,
+                           format: Optional[str] = None,
+                           competition: Optional[str] = None) -> Optional[dict]:
+    """Bowler's baseline across all batters in scope, with per-format phase splits."""
+    bowler_df = query_deliveries(
+        bowler=bowler_name,
+        format=format, competition=competition,
+    )
+    if len(bowler_df) == 0:
+        return None
+    by_format = {}
+    for fmt in ['T20', 'ODI', 'Test']:
+        fmt_df = bowler_df[bowler_df['format'] == fmt]
+        if len(fmt_df) > 0:
+            by_format[fmt] = _compute_bowling_stats(fmt_df)
+    by_competition = {}
+    for comp in _COMPETITION_ORDER:
+        comp_df = bowler_df[bowler_df['competition'] == comp]
+        by_competition[comp] = _compute_bowling_stats(comp_df) if len(comp_df) > 0 else {'balls': 0}
+    return {
+        'bowler': bowler_name,
+        'format': format, 'competition': competition,
+        'overall': _compute_bowling_stats(bowler_df),
+        'by_format': by_format,
+        'by_competition': by_competition,
+        'phase_splits_by_format': _bowling_phase_splits_by_format(bowler_df),
     }
 
 

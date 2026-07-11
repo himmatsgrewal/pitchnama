@@ -146,6 +146,92 @@ function TiltMeter({ tilt, shown }) {
   )
 }
 
+// competition codes in canonical order, with display labels
+const COMP_META = [
+  ['ipl', 'IPL'],
+  ['t20i', 'T20I'],
+  ['odi', 'ODI'],
+  ['test', 'TEST'],
+  ['bbl', 'BBL'],
+  ['psl', 'PSL'],
+  ['cpl', 'CPL'],
+]
+
+function CareerPanel({ role, name, byComp, shown, delay }) {
+  const isBatter = role === 'batter'
+  const accent = isBatter ? 'text-pitch-green' : 'text-pitch-gold'
+  const accentBar = isBatter ? 'bg-pitch-green' : 'bg-pitch-gold'
+  const d = (v, dp = 1) => (v === null || v === undefined ? '–' : Number(v).toFixed(dp))
+  const num = (v) => (v === null || v === undefined ? '–' : Number(v).toLocaleString())
+
+  // batter: Runs / SR / Dot% / Boundary%   |   bowler: Wkts / Econ / Dot%
+  const cols = isBatter ? ['Runs', 'SR', 'Dot%', 'Bnd%'] : ['Wkts', 'Econ', 'Dot%']
+  const gridCols = isBatter
+    ? 'grid-cols-[1fr_repeat(4,minmax(0,1fr))]'
+    : 'grid-cols-[1fr_repeat(3,minmax(0,1fr))]'
+
+  function valuesFor(s) {
+    if (!s || !s.balls) {
+      return isBatter ? ['–', '–', '–', '–'] : ['–', '–', '–']
+    }
+    if (isBatter) {
+      return [num(s.runs), d(s.sr), d(s.dot_pct), d(s.boundary_pct)]
+    }
+    return [num(s.wickets), d(s.economy, 2), d(s.dot_pct)]
+  }
+
+  return (
+    <div
+      className={`overflow-hidden rounded-xl border border-white/10 bg-surface transition-all duration-500 ease-out ${
+        shown ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0'
+      }`}
+      style={{ transitionDelay: `${delay}ms` }}
+    >
+      <div className="flex items-center gap-3 border-b border-white/10 px-5 py-4">
+        <span className={`h-8 w-1 rounded-full ${accentBar}`} />
+        <div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-gray-500">
+            {isBatter ? 'Batter' : 'Bowler'} · career
+          </div>
+          <div className={`text-lg font-bold leading-tight ${accent}`}>{name}</div>
+        </div>
+      </div>
+
+      <div className={`grid ${gridCols} px-5 pt-3 pb-1 font-mono text-[10px] uppercase tracking-wider text-gray-500`}>
+        <span>Comp</span>
+        {cols.map((c) => (
+          <span key={c} className="text-right">{c}</span>
+        ))}
+      </div>
+
+      <div className="px-3 pb-3">
+        {COMP_META.map(([code, label]) => {
+          const s = byComp ? byComp[code] : null
+          const played = !!(s && s.balls)
+          const vals = valuesFor(s)
+          return (
+            <div
+              key={code}
+              className={`grid ${gridCols} items-center rounded-md px-2 py-2 ${
+                played ? 'hover:bg-white/[0.03]' : 'opacity-35'
+              }`}
+            >
+              <span className="font-mono text-xs font-semibold uppercase tracking-wide text-gray-200">
+                {label}
+              </span>
+              {vals.map((v, i) => (
+                <span key={i} className="text-right font-mono text-sm tabular-nums text-white">
+                  {v}
+                </span>
+              ))}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function StatCard({ label, value, shown, delay }) {
   return (
     <div
@@ -919,6 +1005,8 @@ function App() {
   const [data, setData] = useState(null)
   const [compare, setCompare] = useState(null)
   const [report, setReport] = useState(null)
+  const [batterBase, setBatterBase] = useState(null)
+  const [bowlerBase, setBowlerBase] = useState(null)
   const [analysing, setAnalysing] = useState(false)
   const [error, setError] = useState('')
 
@@ -992,15 +1080,24 @@ function App() {
       const params = new URLSearchParams({ batter: batterName, bowler: bowlerName })
       if (format) params.set('match_format', format)
       const qs = params.toString()
-      const [mRes, cRes, rRes] = await Promise.all([
+      const batterQs = new URLSearchParams({ batter: batterName })
+      if (format) batterQs.set('match_format', format)
+      const bowlerQs = new URLSearchParams({ bowler: bowlerName })
+      if (format) bowlerQs.set('match_format', format)
+      const [mRes, cRes, rRes, bbRes, wbRes] = await Promise.all([
         fetch(`${API_BASE}/matchup?${qs}`),
         fetch(`${API_BASE}/compare?${qs}`),
         fetch(`${API_BASE}/report?${qs}`),
+        fetch(`${API_BASE}/baseline?${batterQs.toString()}`),
+        fetch(`${API_BASE}/bowler-baseline?${bowlerQs.toString()}`),
       ])
       if (!mRes.ok || !cRes.ok || !rRes.ok) throw new Error('HTTP error')
       setData(await mRes.json())
       setCompare(await cRes.json())
       setReport(await rRes.json())
+      // career baselines feed the left/right panels; failures are non-fatal
+      try { setBatterBase(bbRes.ok ? await bbRes.json() : null) } catch { setBatterBase(null) }
+      try { setBowlerBase(wbRes.ok ? await wbRes.json() : null) } catch { setBowlerBase(null) }
       setTab('phases')
       goTo('analysis')
     } catch (err) {
@@ -1234,6 +1331,23 @@ function App() {
                       />
                     ))}
                   </div>
+                </div>
+
+                <div className={`mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 ${entrance}`} style={{ transitionDelay: '220ms' }}>
+                  <CareerPanel
+                    role="batter"
+                    name={labelFor(data.batter)}
+                    byComp={batterBase && batterBase.by_competition ? batterBase.by_competition : null}
+                    shown={shown}
+                    delay={260}
+                  />
+                  <CareerPanel
+                    role="bowler"
+                    name={labelFor(data.bowler)}
+                    byComp={bowlerBase && bowlerBase.by_competition ? bowlerBase.by_competition : null}
+                    shown={shown}
+                    delay={320}
+                  />
                 </div>
 
                 <div className="mt-12">
